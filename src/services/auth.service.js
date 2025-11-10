@@ -1,188 +1,358 @@
-import prisma from '../config/database.js';
-import { generateTokenPair, verifyRefreshToken } from '../utils/jwt.js';
-import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, ERROR_MESSAGES } from '../utils/constants.js';
-import { logger } from '../config/logger.js';
+const bcrypt = require('bcryptjs');
+const prisma = require('../config/database');
+const googleAuthClient = require('../config/googleAuth');
+const jwtUtils = require('../utils/jwt');
+const smsService = require('./sms.service');
+const logger = require('../config/logger');
 
-/**
- * Generate and store refresh token
- * @param {string} userId - User ID
- * @param {string} refreshToken - Refresh token
- * @returns {Promise<Object>}
- */
-const storeRefreshToken = async (userId, refreshToken) => {
-  // Calculate expiry date (7 days from now)
-  const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 7);
+class AuthService {
+  
+  async verifyGoogleToken(idToken, ipAddress, deviceInfo = {}) {
+    try {
+      // Verify token with Google
+      const googleUser = await googleAuthClient.verifyIdToken(idToken);
 
-  return await prisma.refreshToken.create({
-    data: {
-      token: refreshToken,
-      userId,
-      expiresAt,
-    },
-  });
-};
+      if (!googleUser.email) {
+        throw new Error('Email not provided by Google');
+      }
 
-/**
- * Authenticate user via Google OAuth
- * @param {Object} user - User object from Passport
- * @returns {Promise<Object>} User with tokens
- */
-export const authenticateWithGoogle = async (user) => {
-  try {
-    // Generate token pair
-    const tokens = generateTokenPair({
-      userId: user.id,
-      email: user.email,
-      role: user.role,
-    });
+      // Check if user exists by googleId
+      let user = await prisma.user.findUnique({
+        where: { googleId: googleUser.googleId },
+        include: {
+          profile: true,
+        },
+      });
 
-    // Store refresh token in database
-    await storeRefreshToken(user.id, tokens.refreshToken);
+      let isNewUser = false;
 
-    logger.info(`User authenticated: ${user.email}`);
+      if (!user) {
+        // Check if email already exists (from another auth method)
+        const existingUser = await prisma.user.findUnique({
+          where: { email: googleUser.email },
+        });
 
-    return {
-      user: {
+        if (existingUser) {
+          throw new Error('Email already registered with different method');
+        }
+
+        // Create new user
+        isNewUser = true;
+        user = await prisma.user.create({
+          data: {
+            email: googleUser.email,
+            googleId: googleUser.googleId,
+            authProvider: 'GOOGLE',
+            profilePicture: googleUser.picture,
+            isEmailVerified: googleUser.emailVerified,
+            emailVerifiedAt: googleUser.emailVerified ? new Date() : null,
+            lastLoginAt: new Date(),
+            lastLoginIp: ipAddress,
+            deviceInfo: JSON.stringify(deviceInfo),
+          },
+          include: {
+            profile: true,
+          },
+        });
+
+        logger.info(`✅ New user created: ${googleUser.email} (ID: ${user.id})`);
+      } else {
+        // Update last login
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            lastLoginAt: new Date(),
+            lastLoginIp: ipAddress,
+            deviceInfo: JSON.stringify(deviceInfo),
+          },
+          include: {
+            profile: true,
+          },
+        });
+
+        logger.info(`✅ User logged in: ${googleUser.email} (ID: ${user.id})`);
+      }
+
+      // Check if account is banned
+      if (user.isBanned) {
+        throw new Error(`Account suspended: ${user.banReason || 'Contact support'}`);
+      }
+
+      if (!user.isActive) {
+        throw new Error('Account is inactive');
+      }
+
+      // Generate JWT tokens
+      const accessToken = jwtUtils.generateAccessToken(user);
+      const refreshToken = jwtUtils.generateRefreshToken(user);
+
+      // Store refresh token in database
+      await prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          token: refreshToken,
+          deviceId: deviceInfo.deviceId || null,
+          deviceName: deviceInfo.deviceName || null,
+          deviceType: deviceInfo.deviceType || null,
+          ipAddress,
+          userAgent: deviceInfo.userAgent || null,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+        },
+      });
+
+      // Clean response
+      const userResponse = {
         id: user.id,
         email: user.email,
-        name: user.name,
+        profilePicture: user.profilePicture,
         role: user.role,
+        isPhoneVerified: user.isPhoneVerified,
+        preferredLanguage: user.preferredLanguage,
         profile: user.profile,
-      },
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    };
-  } catch (error) {
-    logger.error('Error in authenticateWithGoogle:', error);
-    throw error;
-  }
-};
+      };
 
-/**
- * Refresh access token
- * @param {string} refreshToken - Refresh token
- * @returns {Promise<Object>} New token pair
- */
-export const refreshAccessToken = async (refreshToken) => {
-  try {
-    // Verify refresh token
-    const decoded = verifyRefreshToken(refreshToken);
+      return {
+        user: userResponse,
+        accessToken,
+        refreshToken,
+        isNewUser,
+      };
 
-    // Check if token exists in database
-    const tokenRecord = await prisma.refreshToken.findUnique({
-      where: { token: refreshToken },
-      include: { user: true },
-    });
-
-    if (!tokenRecord) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_TOKEN);
-    }
-
-    // Check if token is expired
-    if (new Date() > tokenRecord.expiresAt) {
-      await prisma.refreshToken.delete({
-        where: { token: refreshToken },
-      });
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Refresh token expired');
-    }
-
-    // Generate new token pair
-    const tokens = generateTokenPair({
-      userId: tokenRecord.user.id,
-      email: tokenRecord.user.email,
-      role: tokenRecord.user.role,
-    });
-
-    // Delete old refresh token
-    await prisma.refreshToken.delete({
-      where: { token: refreshToken },
-    });
-
-    // Store new refresh token
-    await storeRefreshToken(tokenRecord.user.id, tokens.refreshToken);
-
-    logger.info(`Access token refreshed for user: ${tokenRecord.user.email}`);
-
-    return tokens;
-  } catch (error) {
-    logger.error('Error in refreshAccessToken:', error);
-    if (error instanceof ApiError) {
+    } catch (error) {
+      logger.error('❌ Google auth error:', error.message);
       throw error;
     }
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_TOKEN);
   }
-};
 
-/**
- * Logout user
- * @param {string} refreshToken - Refresh token to invalidate
- * @returns {Promise<void>}
- */
-export const logout = async (refreshToken) => {
-  try {
-    if (!refreshToken) {
-      return;
-    }
+  async refreshAccessToken(refreshToken, ipAddress) {
+    try {
+      // Verify refresh token
+      const decoded = jwtUtils.verifyRefreshToken(refreshToken);
 
-    // Delete refresh token from database
-    await prisma.refreshToken.deleteMany({
-      where: { token: refreshToken },
-    });
-
-    logger.info('User logged out successfully');
-  } catch (error) {
-    logger.error('Error in logout:', error);
-    throw error;
-  }
-};
-
-/**
- * Logout user from all devices
- * @param {string} userId - User ID
- * @returns {Promise<void>}
- */
-export const logoutAllDevices = async (userId) => {
-  try {
-    // Delete all refresh tokens for user
-    await prisma.refreshToken.deleteMany({
-      where: { userId },
-    });
-
-    logger.info(`User logged out from all devices: ${userId}`);
-  } catch (error) {
-    logger.error('Error in logoutAllDevices:', error);
-    throw error;
-  }
-};
-
-/**
- * Clean up expired refresh tokens
- * @returns {Promise<number>} Number of tokens deleted
- */
-export const cleanupExpiredTokens = async () => {
-  try {
-    const result = await prisma.refreshToken.deleteMany({
-      where: {
-        expiresAt: {
-          lt: new Date(),
+      // Check if token exists in database
+      const tokenRecord = await prisma.refreshToken.findFirst({
+        where: {
+          token: refreshToken,
+          userId: decoded.id,
+          isRevoked: false,
+          expiresAt: {
+            gt: new Date(),
+          },
         },
-      },
-    });
+        include: {
+          user: {
+            include: {
+              profile: true,
+            },
+          },
+        },
+      });
 
-    logger.info(`Cleaned up ${result.count} expired tokens`);
-    return result.count;
-  } catch (error) {
-    logger.error('Error in cleanupExpiredTokens:', error);
-    throw error;
+      if (!tokenRecord) {
+        throw new Error('Invalid or expired refresh token');
+      }
+
+      // Check if user is active
+      if (!tokenRecord.user.isActive || tokenRecord.user.isBanned) {
+        throw new Error('Account is not active');
+      }
+
+      // Generate new tokens
+      const newAccessToken = jwtUtils.generateAccessToken(tokenRecord.user);
+      const newRefreshToken = jwtUtils.generateRefreshToken(tokenRecord.user);
+
+      // Revoke old refresh token
+      await prisma.refreshToken.update({
+        where: { id: tokenRecord.id },
+        data: {
+          isRevoked: true,
+          revokedAt: new Date(),
+        },
+      });
+
+      // Store new refresh token
+      await prisma.refreshToken.create({
+        data: {
+          userId: tokenRecord.userId,
+          token: newRefreshToken,
+          deviceId: tokenRecord.deviceId,
+          deviceName: tokenRecord.deviceName,
+          deviceType: tokenRecord.deviceType,
+          ipAddress,
+          userAgent: tokenRecord.userAgent,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      });
+
+      logger.info(`✅ Token refreshed for user ${tokenRecord.userId}`);
+
+      return {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      };
+
+    } catch (error) {
+      logger.error('❌ Refresh token error:', error.message);
+      throw error;
+    }
   }
-};
 
-export const authService = {
-  authenticateWithGoogle,
-  refreshAccessToken,
-  logout,
-  logoutAllDevices,
-  cleanupExpiredTokens,
-};
+  async logout(userId, refreshToken) {
+    try {
+      if (refreshToken) {
+        await prisma.refreshToken.updateMany({
+          where: {
+            userId,
+            token: refreshToken,
+          },
+          data: {
+            isRevoked: true,
+            revokedAt: new Date(),
+          },
+        });
+      } else {
+        // Revoke all tokens
+        await prisma.refreshToken.updateMany({
+          where: { userId },
+          data: {
+            isRevoked: true,
+            revokedAt: new Date(),
+          },
+        });
+      }
+
+      logger.info(`✅ User ${userId} logged out`);
+    } catch (error) {
+      logger.error('❌ Logout error:', error.message);
+      throw error;
+    }
+  }
+
+  async sendPhoneOTP(userId, phone, countryCode = '+91') {
+    try {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+      });
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      if (user.isPhoneVerified) {
+        throw new Error('Phone already verified');
+      }
+
+      // Check if phone exists for another user
+      const existingPhone = await prisma.user.findFirst({
+        where: {
+          phone,
+          isPhoneVerified: true,
+          id: { not: userId },
+        },
+      });
+
+      if (existingPhone) {
+        throw new Error('Phone number already registered');
+      }
+
+      // Generate 6-digit OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const otpHash = await bcrypt.hash(otp, 10);
+
+      // Delete old OTP records
+      await prisma.phoneVerification.deleteMany({
+        where: { userId },
+      });
+
+      // Create new OTP record
+      await prisma.phoneVerification.create({
+        data: {
+          userId,
+          phone,
+          countryCode,
+          otpHash,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+        },
+      });
+
+      // Send OTP via SMS
+      await smsService.sendOTP(phone, otp, countryCode);
+
+      logger.info(`✅ OTP sent to ${countryCode}${phone} for user ${userId}`);
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('❌ Send OTP error:', error.message);
+      throw error;
+    }
+  }
+
+  async verifyPhoneOTP(userId, phone, otp) {
+    try {
+      // Find OTP record
+      const otpRecord = await prisma.phoneVerification.findFirst({
+        where: {
+          userId,
+          phone,
+          isVerified: false,
+          expiresAt: {
+            gt: new Date(),
+          },
+        },
+      });
+
+      if (!otpRecord) {
+        throw new Error('OTP expired or not found');
+      }
+
+      if (otpRecord.attempts >= 3) {
+        throw new Error('Maximum OTP attempts exceeded');
+      }
+
+      // Verify OTP
+      const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
+
+      if (!isValid) {
+        await prisma.phoneVerification.update({
+          where: { id: otpRecord.id },
+          data: {
+            attempts: otpRecord.attempts + 1,
+          },
+        });
+
+        throw new Error(`Invalid OTP. ${2 - otpRecord.attempts} attempts remaining`);
+      }
+
+      // Mark as verified
+      await prisma.phoneVerification.update({
+        where: { id: otpRecord.id },
+        data: {
+          isVerified: true,
+          verifiedAt: new Date(),
+        },
+      });
+
+      // Update user
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          phone,
+          countryCode: otpRecord.countryCode,
+          isPhoneVerified: true,
+          phoneVerifiedAt: new Date(),
+        },
+      });
+
+      logger.info(`✅ Phone verified for user ${userId}`);
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('❌ Verify OTP error:', error.message);
+      throw error;
+    }
+  }
+}
+
+module.exports = new AuthService();

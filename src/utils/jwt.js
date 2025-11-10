@@ -1,89 +1,54 @@
-import jwt from 'jsonwebtoken';
-import { config } from '../config/config.js';
-import { logger } from '../config/logger.js';
+const jwt = require('jsonwebtoken');
 
-/**
- * Generate JWT Access Token
- * @param {Object} payload - Token payload
- * @returns {string} JWT token
- */
-export const generateAccessToken = (payload) => {
-  try {
-    return jwt.sign(payload, config.JWT_ACCESS_SECRET || config.ACCESS_TOKEN_SECRET, {
-      expiresIn: config.JWT_ACCESS_EXPIRY || config.ACCESS_TOKEN_EXPIRY,
+class JWTUtils {
+  generateAccessToken(user) {
+    const payload = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      type: 'access',
+    };
+
+    return jwt.sign(payload, process.env.JWT_ACCESS_SECRET, {
+      expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
     });
-  } catch (error) {
-    logger.error('Error generating access token:', error);
-    throw error;
   }
-};
 
-/**
- * Generate JWT Refresh Token
- * @param {Object} payload - Token payload
- * @returns {string} JWT token
- */
-export const generateRefreshToken = (payload) => {
-  try {
-    return jwt.sign(payload, config.JWT_REFRESH_SECRET || config.REFRESH_TOKEN_SECRET, {
-      expiresIn: config.JWT_REFRESH_EXPIRY || config.REFRESH_TOKEN_EXPIRY,
+  generateRefreshToken(user) {
+    const payload = {
+      id: user.id,
+      email: user.email,
+      type: 'refresh',
+    };
+
+    return jwt.sign(payload, process.env.JWT_REFRESH_SECRET, {
+      expiresIn: process.env.JWT_REFRESH_EXPIRY || '7d',
     });
-  } catch (error) {
-    logger.error('Error generating refresh token:', error);
-    throw error;
   }
-};
 
-/**
- * Verify JWT Access Token
- * @param {string} token - JWT token
- * @returns {Object} Decoded token payload
- */
-export const verifyAccessToken = (token) => {
-  try {
-    return jwt.verify(token, config.JWT_ACCESS_SECRET || config.ACCESS_TOKEN_SECRET);
-  } catch (error) {
-    logger.error('Error verifying access token:', error);
-    throw error;
+  verifyAccessToken(token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_ACCESS_SECRET);
+      if (decoded.type !== 'access') {
+        throw new Error('Invalid token type');
+      }
+      return decoded;
+    } catch (error) {
+      throw new Error('Invalid or expired access token');
+    }
   }
-};
 
-/**
- * Verify JWT Refresh Token
- * @param {string} token - JWT token
- * @returns {Object} Decoded token payload
- */
-export const verifyRefreshToken = (token) => {
-  try {
-    return jwt.verify(token, config.JWT_REFRESH_SECRET || config.REFRESH_TOKEN_SECRET);
-  } catch (error) {
-    logger.error('Error verifying refresh token:', error);
-    throw error;
+  verifyRefreshToken(token) {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_REFRESH_SECRET);
+      if (decoded.type !== 'refresh') {
+        throw new Error('Invalid token type');
+      }
+      return decoded;
+    } catch (error) {
+      throw new Error('Invalid or expired refresh token');
+    }
   }
-};
+}
 
-/**
- * Decode JWT token without verification
- * @param {string} token - JWT token
- * @returns {Object|null} Decoded token payload
- */
-export const decodeToken = (token) => {
-  try {
-    return jwt.decode(token);
-  } catch (error) {
-    logger.error('Error decoding token:', error);
-    return null;
-  }
-};
-
-/**
- * Generate token pair (access and refresh)
- * @param {Object} payload - Token payload
- * @returns {Object} Object containing access and refresh tokens
- */
-export const generateTokenPair = (payload) => {
-  return {
-    accessToken: generateAccessToken(payload),
-    refreshToken: generateRefreshToken(payload),
-  };
-};
+module.exports = new JWTUtils();

@@ -1,120 +1,158 @@
-import { asyncHandler } from '../utils/asyncHandler.js';
-import { ApiResponse } from '../utils/ApiResponse.js';
-import { ApiError } from '../utils/ApiError.js';
-import { authService } from '../services/auth.service.js';
-import { HTTP_STATUS, SUCCESS_MESSAGES, ERROR_MESSAGES } from '../utils/constants.js';
+const authService = require('../services/auth.service');
+const logger = require('../config/logger');
 
-/**
- * Google OAuth callback handler
- * This is called by Passport after successful Google authentication
- */
-export const googleCallback = asyncHandler(async (req, res) => {
-  const result = await authService.authenticateWithGoogle(req.user);
+class AuthController {
+  
+  async googleMobileAuth(req, res) {
+    try {
+      const { idToken, deviceInfo } = req.body;
 
-  // Set cookies
-  res.cookie('accessToken', result.accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 15 * 60 * 1000, // 15 minutes
-  });
+      if (!idToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'ID token is required',
+        });
+      }
 
-  res.cookie('refreshToken', result.refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
-  });
+      const result = await authService.verifyGoogleToken(
+        idToken,
+        req.ip,
+        deviceInfo || {}
+      );
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.LOGIN_SUCCESS)
-  );
-});
+      return res.status(200).json({
+        success: true,
+        message: result.isNewUser ? 'Account created successfully' : 'Login successful',
+        data: {
+          user: result.user,
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+          isNewUser: result.isNewUser,
+        },
+      });
 
-/**
- * Refresh access token
- */
-export const refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body || req.cookies;
-
-  if (!refreshToken) {
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Refresh token required');
+    } catch (error) {
+      logger.error('Google auth error:', error);
+      return res.status(401).json({
+        success: false,
+        message: error.message || 'Authentication failed',
+      });
+    }
   }
 
-  const tokens = await authService.refreshAccessToken(refreshToken);
+  async refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
 
-  // Update cookies
-  res.cookie('accessToken', tokens.accessToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 15 * 60 * 1000,
-  });
+      if (!refreshToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'Refresh token is required',
+        });
+      }
 
-  res.cookie('refreshToken', tokens.refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
+      const result = await authService.refreshAccessToken(refreshToken, req.ip);
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, tokens, 'Token refreshed successfully')
-  );
-});
+      return res.status(200).json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          accessToken: result.accessToken,
+          refreshToken: result.refreshToken,
+          expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+        },
+      });
 
-/**
- * Logout
- */
-export const logout = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.body || req.cookies;
-
-  if (refreshToken) {
-    await authService.logout(refreshToken);
+    } catch (error) {
+      logger.error('Refresh token error:', error);
+      return res.status(401).json({
+        success: false,
+        message: error.message || 'Token refresh failed',
+      });
+    }
   }
 
-  // Clear cookies
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+  async logout(req, res) {
+    try {
+      const { refreshToken } = req.body;
+      const userId = req.user.id;
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, null, SUCCESS_MESSAGES.LOGOUT_SUCCESS)
-  );
-});
+      await authService.logout(userId, refreshToken);
 
-/**
- * Logout from all devices
- */
-export const logoutAll = asyncHandler(async (req, res) => {
-  await authService.logoutAllDevices(req.user.id);
+      return res.status(200).json({
+        success: true,
+        message: 'Logged out successfully',
+      });
 
-  // Clear cookies
-  res.clearCookie('accessToken');
-  res.clearCookie('refreshToken');
+    } catch (error) {
+      logger.error('Logout error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Logout failed',
+      });
+    }
+  }
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, null, 'Logged out from all devices')
-  );
-});
+  async sendPhoneOTP(req, res) {
+    try {
+      const { phone, countryCode = '+91' } = req.body;
+      const userId = req.user.id;
 
-/**
- * Get current user
- */
-export const getCurrentUser = asyncHandler(async (req, res) => {
-  const user = {
-    id: req.user.id,
-    email: req.user.email,
-    name: req.user.name,
-    role: req.user.role,
-    profile: req.user.profile,
-    createdAt: req.user.createdAt,
-  };
+      if (!phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number is required',
+        });
+      }
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, user, 'User retrieved successfully')
-  );
-});
+      await authService.sendPhoneOTP(userId, phone, countryCode);
 
-export const authController = {
-  googleCallback,
-  refreshToken,
-  logout,
-  logoutAll,
-  getCurrentUser,
-};
+      return res.status(200).json({
+        success: true,
+        message: 'OTP sent successfully',
+        data: {
+          expiresIn: 300,
+          otpSentTo: `${countryCode}${phone}`,
+        },
+      });
+
+    } catch (error) {
+      logger.error('Send OTP error:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'Failed to send OTP',
+      });
+    }
+  }
+
+  async verifyPhoneOTP(req, res) {
+    try {
+      const { phone, otp } = req.body;
+      const userId = req.user.id;
+
+      if (!phone || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phone number and OTP are required',
+        });
+      }
+
+      await authService.verifyPhoneOTP(userId, phone, otp);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Phone verified successfully',
+      });
+
+    } catch (error) {
+      logger.error('Verify OTP error:', error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || 'OTP verification failed',
+      });
+    }
+  }
+}
+
+module.exports = new AuthController();

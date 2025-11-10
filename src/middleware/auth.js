@@ -1,120 +1,86 @@
-import { verifyAccessToken } from '../utils/jwt.js';
-import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, ERROR_MESSAGES, USER_ROLES } from '../utils/constants.js';
-import prisma from '../config/database.js';
-import { asyncHandler } from '../utils/asyncHandler.js';
+const jwtUtils = require('../utils/jwt');
+const prisma = require('../config/database');
+const logger = require('../config/logger');
 
-/**
- * Authenticate user with JWT token
- * Extracts token from Authorization header or cookies
- */
-export const authenticate = asyncHandler(async (req, res, next) => {
-  // Extract token from Authorization header or cookies
-  const token =
-    req.headers.authorization?.replace('Bearer ', '') ||
-    req.cookies?.accessToken;
-
-  if (!token) {
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
-  }
-
+const authenticate = async (req, res, next) => {
   try {
-    // Verify token
-    const decoded = verifyAccessToken(token);
+    const authHeader = req.headers.authorization;
 
-    // Fetch user from database
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authorization token required',
+      });
+    }
+
+    const token = authHeader.substring(7);
+
+    // Verify JWT
+    const decoded = jwtUtils.verifyAccessToken(token);
+
+    // Get user from database
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId || decoded.id },
-      include: { profile: true },
+      where: { id: decoded.id },
+      include: {
+        profile: true,
+      },
     });
 
     if (!user) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.USER_NOT_FOUND);
+      return res.status(401).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    if (!user.isActive || user.isBanned) {
+      return res.status(403).json({
+        success: false,
+        message: 'Account is not active',
+      });
     }
 
     // Attach user to request
     req.user = user;
     next();
+
   } catch (error) {
-    if (error instanceof ApiError) {
-      throw error;
-    }
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.INVALID_TOKEN);
+    logger.error('Authentication error:', error.message);
+    return res.status(401).json({
+      success: false,
+      message: 'Invalid or expired token',
+    });
   }
-});
+};
 
-/**
- * Authorize user based on roles
- * @param {...string} roles - Allowed roles
- */
-export const authorize = (...roles) => {
-  return asyncHandler(async (req, res, next) => {
-    if (!req.user) {
-      throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
-    }
+const optionalAuth = async (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
 
-    if (!roles.includes(req.user.role)) {
-      throw new ApiError(HTTP_STATUS.FORBIDDEN, ERROR_MESSAGES.FORBIDDEN);
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.substring(7);
+      const decoded = jwtUtils.verifyAccessToken(token);
+
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        include: {
+          profile: true,
+        },
+      });
+
+      if (user && user.isActive && !user.isBanned) {
+        req.user = user;
+      }
     }
 
     next();
-  });
-};
-
-/**
- * Check if user is admin
- */
-export const isAdmin = authorize(USER_ROLES.ADMIN);
-
-/**
- * Check if user is premium user or admin
- */
-export const isPremiumOrAdmin = authorize(USER_ROLES.PREMIUM_USER, USER_ROLES.ADMIN);
-
-/**
- * Optional authentication - does not throw error if token is missing
- * Useful for routes that work differently for authenticated vs non-authenticated users
- */
-export const optionalAuth = asyncHandler(async (req, res, next) => {
-  const token =
-    req.headers.authorization?.replace('Bearer ', '') ||
-    req.cookies?.accessToken;
-
-  if (!token) {
-    return next();
-  }
-
-  try {
-    const decoded = verifyAccessToken(token);
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId || decoded.id },
-      include: { profile: true },
-    });
-
-    if (user) {
-      req.user = user;
-    }
   } catch (error) {
     // Silently fail for optional auth
+    next();
   }
+};
 
-  next();
-});
-
-/**
- * Check if user has completed profile
- */
-export const requireCompleteProfile = asyncHandler(async (req, res, next) => {
-  if (!req.user) {
-    throw new ApiError(HTTP_STATUS.UNAUTHORIZED, ERROR_MESSAGES.UNAUTHORIZED);
-  }
-
-  if (!req.user.profile) {
-    throw new ApiError(
-      HTTP_STATUS.FORBIDDEN,
-      'Please complete your profile to access this resource'
-    );
-  }
-
-  next();
-});
+module.exports = {
+  authenticate,
+  optionalAuth,
+};
