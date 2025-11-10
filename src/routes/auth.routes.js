@@ -1,7 +1,7 @@
-const express = require('express');
+import express from 'express';
 const router = express.Router();
-const authController = require('../controllers/auth.controller');
-const { authenticate } = require('../middleware/auth');
+import authController from '../controllers/auth.controller.js';
+import { authenticate } from '../middleware/auth.js';
 
 // Google Sign-In (Mobile)
 router.post('/google', authController.googleMobileAuth);
@@ -14,4 +14,4 @@ router.post('/logout', authenticate, authController.logout);
 router.post('/phone/send-otp', authenticate, authController.sendPhoneOTP);
 router.post('/phone/verify-otp', authenticate, authController.verifyPhoneOTP);
 
-module.exports = router;
+export default router;

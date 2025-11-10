@@ -1,5 +1,5 @@
-const authService = require('../services/auth.service');
-const logger = require('../config/logger');
+import authService from '../services/auth.service.js';
+import {logger} from '../config/logger.js';
 
 class AuthController {
   
@@ -155,4 +155,4 @@ class AuthController {
   }
 }
 
-module.exports = new AuthController();
+export default new AuthController();

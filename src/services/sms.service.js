@@ -1,5 +1,5 @@
-const axios = require('axios');
-const logger = require('../config/logger');
+import axios from 'axios';
+import {logger} from '../config/logger.js';
 
 class SMSService {
   constructor() {
@@ -57,4 +57,4 @@ class SMSService {
   }
 }
 
-module.exports = new SMSService();
+export default new SMSService();

@@ -1,11 +1,11 @@
-const express = require('express');
-const helmet = require('helmet');
-const cors = require('cors');
-const compression = require('compression');
-const morgan = require('morgan');
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import compression from 'compression';
+import morgan from 'morgan';
 
-const routes = require('./routes');
-const logger = require('./config/logger');
+import routes from './routes/index.js';
+import { logger } from './config/logger.js';
 
 const app = express();
 
@@ -50,4 +50,4 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = app;
+export default app;

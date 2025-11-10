@@ -1,8 +1,11 @@
-const jwtUtils = require('../utils/jwt');
-const prisma = require('../config/database');
-const logger = require('../config/logger');
+import jwtUtils from '../utils/jwt.js';
+import prisma from '../config/database.js';
+import { logger } from '../config/logger.js';
 
-const authenticate = async (req, res, next) => {
+/**
+ * Authenticate user with JWT token
+ */
+export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -53,7 +56,10 @@ const authenticate = async (req, res, next) => {
   }
 };
 
-const optionalAuth = async (req, res, next) => {
+/**
+ * Optional authentication (doesn't fail if no token)
+ */
+export const optionalAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -80,7 +86,155 @@ const optionalAuth = async (req, res, next) => {
   }
 };
 
-module.exports = {
-  authenticate,
-  optionalAuth,
+/**
+ * Require user to have a complete profile
+ */
+export const requireCompleteProfile = async (req, res, next) => {
+  try {
+    // User must be authenticated first
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    // Check if profile exists
+    if (!req.user.profile) {
+      return res.status(403).json({
+        success: false,
+        message: 'Profile not found. Please create your profile first.',
+      });
+    }
+
+    // Check profile completeness (you can adjust the threshold)
+    const profileCompleteness = req.user.profile.profileCompleteness || 0;
+    
+    if (profileCompleteness < 50) {
+      return res.status(403).json({
+        success: false,
+        message: 'Please complete your profile to access this feature',
+        data: {
+          profileCompleteness,
+          requiredCompleteness: 50,
+        },
+      });
+    }
+
+    next();
+
+  } catch (error) {
+    logger.error('Profile check error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking profile status',
+    });
+  }
+};
+
+/**
+ * Require user to have verified phone
+ */
+export const requirePhoneVerified = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    if (!req.user.isPhoneVerified) {
+      return res.status(403).json({
+        success: false,
+        message: 'Phone verification required to access this feature',
+      });
+    }
+
+    next();
+
+  } catch (error) {
+    logger.error('Phone verification check error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking phone verification status',
+    });
+  }
+};
+
+/**
+ * Require user to have active subscription
+ */
+export const requireSubscription = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    // Check for active subscription
+    const activeSubscription = await prisma.userSubscription.findFirst({
+      where: {
+        userId: req.user.id,
+        status: 'ACTIVE',
+        endDate: {
+          gt: new Date(),
+        },
+      },
+      include: {
+        plan: true,
+      },
+    });
+
+    if (!activeSubscription) {
+      return res.status(403).json({
+        success: false,
+        message: 'Active subscription required to access this feature',
+        requiresSubscription: true,
+      });
+    }
+
+    // Attach subscription to request
+    req.subscription = activeSubscription;
+    next();
+
+  } catch (error) {
+    logger.error('Subscription check error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking subscription status',
+    });
+  }
+};
+
+/**
+ * Check if user has admin role
+ */
+export const requireAdmin = async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Authentication required',
+      });
+    }
+
+    if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
+      return res.status(403).json({
+        success: false,
+        message: 'Admin access required',
+      });
+    }
+
+    next();
+
+  } catch (error) {
+    logger.error('Admin check error:', error.message);
+    return res.status(500).json({
+      success: false,
+      message: 'Error checking admin status',
+    });
+  }
 };

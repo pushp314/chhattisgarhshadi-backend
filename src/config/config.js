@@ -14,7 +14,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().optional(),
   
   // CORS
-  CORS_ORIGIN: z.string(),
+  CORS_ORIGIN: z.string().default('*'),
   FRONTEND_URL: z.string().optional(),
   
   // JWT
@@ -27,18 +27,18 @@ const envSchema = z.object({
   REFRESH_TOKEN_SECRET: z.string().optional(), // Backward compatibility
   REFRESH_TOKEN_EXPIRY: z.string().optional(), // Backward compatibility
   
-  // Google OAuth
+  // Google OAuth (Mobile - only CLIENT_ID needed)
   GOOGLE_CLIENT_ID: z.string(),
-  GOOGLE_CLIENT_SECRET: z.string(),
-  GOOGLE_CALLBACK_URL: z.string(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(), // ✅ Optional (not needed for mobile)
+  GOOGLE_CALLBACK_URL: z.string().optional(),  // ✅ Optional (not needed for mobile)
   
   // AWS S3
   AWS_ACCESS_KEY_ID: z.string(),
   AWS_SECRET_ACCESS_KEY: z.string(),
-  AWS_S3_BUCKET_NAME: z.string(),
-  AWS_S3_BUCKET: z.string().optional(), // Alternate naming
-  AWS_S3_REGION: z.string(),
-  AWS_REGION: z.string().optional(), // Alternate naming
+  AWS_S3_BUCKET_NAME: z.string().optional(),   // ✅ Made optional
+  AWS_S3_BUCKET: z.string().optional(),        // Alternate naming
+  AWS_S3_REGION: z.string().optional(),        // ✅ Made optional
+  AWS_REGION: z.string().default('ap-south-1'), // ✅ Added default
   
   // Firebase
   FIREBASE_PROJECT_ID: z.string().optional(),
@@ -53,7 +53,7 @@ const envSchema = z.object({
   // Razorpay
   RAZORPAY_KEY_ID: z.string(),
   RAZORPAY_KEY_SECRET: z.string(),
-  RAZORPAY_WEBHOOK_SECRET: z.string(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(), // ✅ Made optional
 });
 
 export const config = envSchema.parse(process.env);

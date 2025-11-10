@@ -16,14 +16,12 @@ export const initializeFirebase = () => {
 
     // Check if all required Firebase config is available
     if (!config.FIREBASE_PROJECT_ID || !config.FIREBASE_PRIVATE_KEY || !config.FIREBASE_CLIENT_EMAIL) {
-      logger.warn('Firebase configuration is incomplete. Push notifications will not work.');
+      logger.warn('⚠️  Firebase configuration is incomplete. Push notifications will not work.');
       return null;
     }
 
-    // Decode base64 private key if needed
-    const privateKey = config.FIREBASE_PRIVATE_KEY.includes('\\n')
-      ? config.FIREBASE_PRIVATE_KEY
-      : Buffer.from(config.FIREBASE_PRIVATE_KEY, 'base64').toString('utf-8');
+    // Replace escaped newlines in private key
+    const privateKey = config.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n');
 
     firebaseApp = admin.initializeApp({
       credential: admin.credential.cert({
@@ -33,10 +31,13 @@ export const initializeFirebase = () => {
       }),
     });
 
-    logger.info('Firebase Admin SDK initialized successfully');
+    logger.info('✅ Firebase Admin SDK initialized successfully');
     return firebaseApp;
   } catch (error) {
-    logger.error('Failed to initialize Firebase Admin SDK:', error);
+    logger.error('❌ Failed to initialize Firebase Admin SDK:', error.message, {
+      errorInfo: error.errorInfo,
+      codePrefix: error.codePrefix,
+    });
     return null;
   }
 };
@@ -59,7 +60,53 @@ export const getFirebaseApp = () => {
 export const getMessaging = () => {
   const app = getFirebaseApp();
   if (!app) {
+    logger.warn('⚠️  Firebase not initialized - cannot get messaging instance');
     return null;
   }
-  return admin.messaging(app);
+  try {
+    return admin.messaging(app);
+  } catch (error) {
+    logger.error('❌ Error getting Firebase messaging:', error.message);
+    return null;
+  }
+};
+
+/**
+ * Send push notification
+ * @param {string} token - FCM device token
+ * @param {Object} notification - Notification payload
+ * @returns {Promise<string|null>}
+ */
+export const sendPushNotification = async (token, notification) => {
+  try {
+    const messaging = getMessaging();
+    
+    if (!messaging) {
+      logger.warn('⚠️  Push notification skipped - Firebase not initialized');
+      return null;
+    }
+
+    const message = {
+      notification: {
+        title: notification.title,
+        body: notification.body,
+      },
+      data: notification.data || {},
+      token: token,
+    };
+
+    const response = await messaging.send(message);
+    logger.info('✅ Push notification sent successfully:', response);
+    return response;
+  } catch (error) {
+    logger.error('❌ Failed to send push notification:', error.message);
+    throw error;
+  }
+};
+
+export default {
+  initializeFirebase,
+  getFirebaseApp,
+  getMessaging,
+  sendPushNotification,
 };

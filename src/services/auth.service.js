@@ -1,9 +1,9 @@
-const bcrypt = require('bcryptjs');
-const prisma = require('../config/database');
-const googleAuthClient = require('../config/googleAuth');
-const jwtUtils = require('../utils/jwt');
-const smsService = require('./sms.service');
-const logger = require('../config/logger');
+import bcrypt from 'bcryptjs';
+import prisma from '../config/database.js';
+import googleAuthClient from '../config/googleAuth.js';
+import jwtUtils from '../utils/jwt.js';
+import smsService from './sms.service.js';
+import { logger } from '../config/logger.js';
 
 class AuthService {
   
@@ -355,4 +355,4 @@ class AuthService {
   }
 }
 
-module.exports = new AuthService();
+export default new AuthService();

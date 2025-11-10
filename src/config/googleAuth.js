@@ -1,5 +1,5 @@
-const { OAuth2Client } = require('google-auth-library');
-const logger = require('./logger');
+import { OAuth2Client } from 'google-auth-library';
+import { logger } from './logger.js';  // ✅ Changed from 'import logger' to '{ logger }'
 
 class GoogleAuthClient {
   constructor() {
@@ -40,4 +40,4 @@ class GoogleAuthClient {
   }
 }
 
-module.exports = new GoogleAuthClient();
+export default new GoogleAuthClient();

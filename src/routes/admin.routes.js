@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { adminController } from '../controllers/admin.controller.js';
-import { authenticate, isAdmin } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';  // ✅ Changed isAdmin → requireAdmin
 
 const router = Router();
 
 // All routes require authentication and admin role
-router.use(authenticate, isAdmin);
+router.use(authenticate, requireAdmin);  // ✅ Changed isAdmin → requireAdmin
 
 /**
  * @route   GET /api/admin/users

@@ -1,4 +1,4 @@
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
 
 class JWTUtils {
   generateAccessToken(user) {
@@ -51,4 +51,14 @@ class JWTUtils {
   }
 }
 
-module.exports = new JWTUtils();
+// ES6 export
+const jwtUtils = new JWTUtils();
+
+// Export both as default and named exports
+export default jwtUtils;
+export const { 
+  generateAccessToken, 
+  generateRefreshToken, 
+  verifyAccessToken, 
+  verifyRefreshToken 
+} = jwtUtils;
