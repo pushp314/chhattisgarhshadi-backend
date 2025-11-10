@@ -1,8 +1,9 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearch", "fullTextIndex"]
+  binaryTargets   = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -10,138 +11,18 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String          @id @default(cuid())
-  email         String          @unique
-  name          String?
-  password      String?
-  googleId      String?         @unique
-  role          UserRole        @default(USER)
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  profile       Profile?      
-  sentMessages  Message[]       @relation("sentMessages")
-  receivedMessages Message[]    @relation("receivedMessages")
-  sentMatches   Match[]         @relation("sentMatches")
-  receivedMatches Match[]       @relation("receivedMatches")
-  subscription  UserSubscription?
-  payments      Payment[]
-  notifications Notification[]
-  sessions      RefreshToken[]
-}
+// ============================================
+// ENUMS
+// ============================================
 
-model Profile {
-  id              String      @id @default(cuid())
-  userId          String      @unique
-  user            User        @relation(fields: [userId], references: [id])
-  firstName       String
-  lastName        String
-  dateOfBirth     DateTime
-  gender          Gender
-  religion        String
-  caste           String
-  maritalStatus   MaritalStatus
-  height          Float
-  bio             String?
-  photos          Json[]
-  idProof         String? 
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-}
-
-model Match {
-  id          String      @id @default(cuid())
-  fromUserId  String
-  toUserId    String
-  status      MatchStatus @default(PENDING)
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  fromUser    User        @relation("sentMatches", fields: [fromUserId], references: [id])
-  toUser      User        @relation("receivedMatches", fields: [toUserId], references: [id])
-
-  @@unique([fromUserId, toUserId])
-}
-
-model Message {
-  id          String    @id @default(cuid())
-  fromUserId  String
-  toUserId    String
-  content     String
-  isRead      Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-
-  fromUser    User      @relation("sentMessages", fields: [fromUserId], references: [id])
-  toUser      User      @relation("receivedMessages", fields: [toUserId], references: [id])
-}
-
-model SubscriptionPlan {
-  id            String    @id @default(cuid())
-  name          String
-  price         Float
-  durationDays  Int
-  features      String[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model UserSubscription {
-  id          String    @id @default(cuid())
-  userId      String    @unique
-  planId      String
-  startDate   DateTime
-  endDate     DateTime
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-
-  user        User      @relation(fields: [userId], references: [id])
-}
-
-model Payment {
-  id              String        @id @default(cuid())
-  userId          String
-  amount          Float
-  currency        String
-  status          PaymentStatus @default(PENDING)
-  razorpayOrderId String
-  razorpayPaymentId String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  user            User          @relation(fields: [userId], references: [id])
-}
-
-model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  message   String
-  isRead    Boolean   @default(false)
-  createdAt DateTime  @default(now())
-
-  user      User      @relation(fields: [userId], references: [id])
-}
-
-model RefreshToken {
-  id        String    @id @default(cuid())
-  token     String    @unique
-  userId    String
-  expiresAt DateTime
-  createdAt DateTime  @default(now())
-
-  user      User      @relation(fields: [userId], references: [id])
-}
-
-model SystemConfig {
-  id        String    @id @default(cuid())
-  key       String    @unique
-  value     String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+enum AuthProvider {
+  GOOGLE          // Only Google OAuth (primary authentication)
 }
 
 enum UserRole {
   USER
   PREMIUM_USER
+  VERIFIED_USER
   ADMIN
 }
 
@@ -152,19 +33,1640 @@ enum Gender {
 }
 
 enum MaritalStatus {
-  SINGLE
+  NEVER_MARRIED
   DIVORCED
   WIDOWED
+  AWAITING_DIVORCE
+  ANNULLED
 }
 
-enum MatchStatus {
+enum Religion {
+  HINDU
+  MUSLIM
+  CHRISTIAN
+  SIKH
+  BUDDHIST
+  JAIN
+  PARSI
+  JEWISH
+  BAHAI
+  NO_RELIGION
+  SPIRITUAL
+  OTHER
+}
+
+enum Caste {
+  GENERAL
+  OBC
+  SC
+  ST
+  OTHER
+}
+
+enum MotherTongue {
+  CHHATTISGARHI    // Primary focus
+  HINDI
+  ENGLISH
+  TAMIL
+  TELUGU
+  MALAYALAM
+  KANNADA
+  MARATHI
+  GUJARATI
+  BENGALI
+  PUNJABI
+  URDU
+  ODIA
+  ASSAMESE
+  KONKANI
+  KASHMIRI
+  SANSKRIT
+  SINDHI
+  NEPALI
+  MANIPURI
+  BODO
+  DOGRI
+  MAITHILI
+  SANTALI
+  OTHER
+}
+
+enum EducationLevel {
+  HIGH_SCHOOL
+  INTERMEDIATE
+  DIPLOMA
+  BACHELORS
+  MASTERS
+  DOCTORATE
+  POST_DOCTORATE
+  PROFESSIONAL_DEGREE
+  OTHER
+}
+
+enum OccupationType {
+  SALARIED
+  BUSINESS
+  PROFESSIONAL
+  SELF_EMPLOYED
+  NOT_WORKING
+  STUDENT
+  RETIRED
+}
+
+enum MatchRequestStatus {
   PENDING
   ACCEPTED
   REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
 }
 
 enum PaymentStatus {
   PENDING
-  SUCCESS
+  COMPLETED
   FAILED
+  REFUNDED
+  CANCELLED
+}
+
+enum NotificationType {
+  MATCH_REQUEST
+  MATCH_ACCEPTED
+  MATCH_REJECTED
+  NEW_MESSAGE
+  PROFILE_VIEW
+  SHORTLISTED
+  SUBSCRIPTION_EXPIRY
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  PROFILE_VERIFIED
+  PROFILE_REJECTED
+  SYSTEM_ALERT
+  SECURITY_ALERT
+}
+
+enum NotificationChannel {
+  IN_APP
+  SMS
+  EMAIL
+  PUSH
+}
+
+enum MediaType {
+  PROFILE_PHOTO
+  GALLERY_PHOTO
+  ID_PROOF
+  ADDRESS_PROOF
+  INCOME_PROOF
+  EDUCATION_CERTIFICATE
+  CHAT_IMAGE
+  OTHER_DOCUMENT
+}
+
+enum VerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESUBMIT_REQUIRED
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  MODERATOR
+  SUPPORT
+}
+
+enum AgentStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  TERMINATED
+}
+
+enum ReportReason {
+  FAKE_PROFILE
+  INAPPROPRIATE_CONTENT
+  HARASSMENT
+  SCAM
+  SPAM
+  UNDERAGE
+  IMPERSONATION
+  PRIVACY_VIOLATION
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  UNDER_REVIEW
+  RESOLVED
+  DISMISSED
+  ESCALATED
+}
+
+enum Language {
+  EN    // English
+  HI    // Hindi
+  CG    // Chhattisgarhi
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+model User {
+  id                Int       @id @default(autoincrement())
+  
+  // Authentication - GOOGLE OAUTH ONLY
+  email             String    @unique @db.VarChar(255)
+  googleId          String    @unique @db.VarChar(255)
+  authProvider      AuthProvider @default(GOOGLE)
+  
+  // Phone Verification (ONE-TIME, NOT FOR LOGIN)
+  phone             String?   @unique @db.VarChar(20)
+  countryCode       String    @default("+91") @db.VarChar(5)
+  isPhoneVerified   Boolean   @default(false)
+  phoneVerifiedAt   DateTime?
+  
+  // Email already verified via Google
+  isEmailVerified   Boolean   @default(true)
+  emailVerifiedAt   DateTime  @default(now())
+  
+  // Profile & Settings
+  profilePicture    String?   @db.Text  // Local path: /uploads/profiles/{userId}/original/...
+  role              UserRole  @default(USER)
+  
+  // Language Preference (NEW)
+  preferredLanguage Language  @default(HI) // Hindi default for Indian users
+  
+  // Agent Tracking
+  agentId           Int?
+  agent             Agent?    @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  agentCodeUsed     String?   @db.VarChar(20)
+  referredAt        DateTime?
+  
+  // Account Status
+  isActive          Boolean   @default(true)
+  isBanned          Boolean   @default(false)
+  banReason         String?   @db.Text
+  bannedAt          DateTime?
+  bannedBy          Int?
+  
+  // Security
+  lastLoginAt       DateTime?
+  lastLoginIp       String?   @db.Inet
+  loginAttempts     Int       @default(0)
+  lockedUntil       DateTime?
+  
+  // Metadata
+  deviceInfo        String?   @db.Text // JSON
+  userAgent         String?   @db.Text
+  
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  profile                       Profile?
+  phoneVerifications            PhoneVerification[]  // Changed from OtpVerification
+  refreshTokens                 RefreshToken[]
+  sentMatchRequests             MatchRequest[] @relation("MatchRequestSender")
+  receivedMatchRequests         MatchRequest[] @relation("MatchRequestReceiver")
+  sentMessages                  Message[] @relation("MessageSender")
+  receivedMessages              Message[] @relation("MessageReceiver")
+  subscriptions                 UserSubscription[]
+  payments                      Payment[]
+  notifications                 Notification[]
+  activityLogs                  ActivityLog[]
+  profileViewsGiven             ProfileView[] @relation("ProfileViewer")
+  profileViewsReceived          ProfileView[] @relation("ProfileViewed")
+  shortlistsGiven               Shortlist[] @relation("ShortlistGiver")
+  shortlistsReceived            Shortlist[] @relation("ShortlistReceiver")
+  blocksGiven                   BlockedUser[] @relation("Blocker")
+  blocksReceived                BlockedUser[] @relation("Blocked")
+  reportsGiven                  Report[] @relation("Reporter")
+  reportsReceived               Report[] @relation("Reported")
+  
+  // Privacy Settings
+  profilePrivacySettings        ProfilePrivacySettings?
+  communicationPreferences      CommunicationPreferences?
+  searchVisibilitySettings      SearchVisibilitySettings?
+  dataPrivacySettings           DataPrivacySettings?
+  accountSecuritySettings       AccountSecuritySettings?
+  notificationPreferences       NotificationPreferences?
+  
+  // Contact & Photo Requests
+  contactRequestsSent           ContactRequest[] @relation("ContactRequester")
+  contactRequestsReceived       ContactRequest[] @relation("ContactReceiver")
+  photoViewRequestsSent         PhotoViewRequest[] @relation("PhotoViewRequester")
+  photoViewRequestsReceived     PhotoViewRequest[] @relation("PhotoViewReceiver")
+  
+  // Data Management
+  dataDeletionRequests          DataDeletionRequest[]
+  dataExportRequests            DataExportRequest[]
+  
+  // Media
+  mediaUploads                  Media[]
+  photoPrivacySettings          PhotoPrivacySettings[]
+  
+  // FCM Tokens
+  fcmTokens                     FcmToken[]
+  
+  @@index([email])
+  @@index([googleId])
+  @@index([phone])
+  @@index([agentId])
+  @@index([agentCodeUsed])
+  @@index([isActive, isBanned])
+  @@index([createdAt(sort: Desc)])
+  @@index([lastLoginAt(sort: Desc)])
+  @@index([preferredLanguage])
+  @@map("users")
+}
+
+// ============================================
+// PHONE VERIFICATION (ONE-TIME, NOT FOR LOGIN)
+// ============================================
+
+model PhoneVerification {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  phone             String    @db.VarChar(20)
+  countryCode       String    @default("+91") @db.VarChar(5)
+  otpHash           String    @db.VarChar(255) // Bcrypt hashed OTP
+  
+  attempts          Int       @default(0)
+  isVerified        Boolean   @default(false)
+  verifiedAt        DateTime?
+  
+  expiresAt         DateTime  // 5 minutes from creation
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([phone, isVerified])
+  @@index([expiresAt])
+  @@map("phone_verifications")
+}
+
+// ============================================
+// REFRESH TOKENS (JWT)
+// ============================================
+
+model RefreshToken {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token             String    @unique @db.Text
+  deviceId          String?   @db.VarChar(255)
+  deviceName        String?   @db.VarChar(100)
+  deviceType        String?   @db.VarChar(50)
+  ipAddress         String?   @db.Inet
+  userAgent         String?   @db.Text
+  
+  isRevoked         Boolean   @default(false)
+  revokedAt         DateTime?
+  expiresAt         DateTime
+  lastUsedAt        DateTime?
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@index([isRevoked])
+  @@map("refresh_tokens")
+}
+
+// ============================================
+// FCM TOKENS (Push Notifications)
+// ============================================
+
+model FcmToken {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  token             String    @db.Text
+  deviceId          String    @db.VarChar(255)
+  deviceType        String    @db.VarChar(50) // IOS, ANDROID, WEB
+  deviceName        String?   @db.VarChar(100)
+  
+  isActive          Boolean   @default(true)
+  lastUsedAt        DateTime  @default(now())
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@unique([userId, deviceId])
+  @@index([userId, isActive])
+  @@map("fcm_tokens")
+}
+
+// ============================================
+// AGENT SYSTEM (ADMIN-MANAGED ONLY)
+// ============================================
+
+model Agent {
+  id                    Int             @id @default(autoincrement())
+  
+  // Basic Information
+  agentCode             String          @unique @db.VarChar(20) // AGT000001, AGT000002, etc.
+  agentName             String          @db.VarChar(200)
+  
+  // Contact Information
+  contactPerson         String?         @db.VarChar(100)
+  phone                 String?         @db.VarChar(20)
+  email                 String?         @db.VarChar(255)
+  alternatePhone        String?         @db.VarChar(20)
+  
+  // Location
+  addressLine1          String?         @db.VarChar(255)
+  addressLine2          String?         @db.VarChar(255)
+  city                  String?         @db.VarChar(100)
+  district              String?         @db.VarChar(100) // Chhattisgarh district
+  state                 String?         @db.VarChar(100)
+  country               String          @default("India") @db.VarChar(100)
+  postalCode            String?         @db.VarChar(20)
+  
+  // Business Details
+  businessName          String?         @db.VarChar(200)
+  businessType          String?         @db.VarChar(50) // INDIVIDUAL, FRANCHISE, CORPORATE
+  gstNumber             String?         @db.VarChar(20)
+  panNumber             String?         @db.VarChar(20)
+  
+  // Commission Structure
+  commissionType        String          @default("PERCENTAGE") @db.VarChar(20)
+  commissionValue       Decimal         @default(10.00) @db.Decimal(5, 2)
+  commissionOn          String          @default("SUBSCRIPTION") @db.VarChar(30)
+  
+  // Tier System
+  tierLevel             Int             @default(1)
+  tierTarget            Int?
+  tierBonus             Decimal?        @db.Decimal(10, 2)
+  
+  // Statistics (Auto-calculated)
+  totalUsersAdded       Int             @default(0)
+  activeUsers           Int             @default(0)
+  premiumUsers          Int             @default(0)
+  totalRevenue          Decimal         @default(0) @db.Decimal(12, 2)
+  totalCommission       Decimal         @default(0) @db.Decimal(12, 2)
+  pendingCommission     Decimal         @default(0) @db.Decimal(12, 2)
+  paidCommission        Decimal         @default(0) @db.Decimal(12, 2)
+  
+  // Status
+  status                AgentStatus     @default(ACTIVE)
+  isActive              Boolean         @default(true)
+  
+  // Bank Details (for payouts)
+  bankName              String?         @db.VarChar(100)
+  accountHolderName     String?         @db.VarChar(200)
+  accountNumber         String?         @db.VarChar(50)
+  ifscCode              String?         @db.VarChar(20)
+  branchName            String?         @db.VarChar(100)
+  upiId                 String?         @db.VarChar(100)
+  
+  // Documents (stored locally)
+  idProofUrl            String?         @db.Text // /uploads/documents/agents/{agentId}/id-proof.pdf
+  addressProofUrl       String?         @db.Text
+  panCardUrl            String?         @db.Text
+  cancelledChequeUrl    String?         @db.Text
+  
+  // Admin Notes
+  notes                 String?         @db.Text
+  internalNotes         String?         @db.Text
+  
+  // Metadata
+  source                String?         @db.VarChar(50)
+  websiteUrl            String?         @db.VarChar(255)
+  socialMediaLinks      String?         @db.Text // JSON
+  
+  // Language Preference
+  preferredLanguage     Language        @default(HI)
+  
+  // Created By Admin
+  createdBy             Int?
+  createdByAdmin        Admin?          @relation("AgentCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  
+  // Timestamps
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  deletedAt             DateTime?
+  
+  // Relations
+  users                 User[]
+  commissions           AgentCommission[]
+  payouts               AgentPayout[]
+  activityLogs          AgentActivityLog[]
+  
+  @@index([agentCode])
+  @@index([status, isActive])
+  @@index([email])
+  @@index([phone])
+  @@index([district]) // For Chhattisgarh-specific filtering
+  @@index([createdAt(sort: Desc)])
+  @@index([totalUsersAdded(sort: Desc)])
+  @@map("agents")
+}
+
+// ============================================
+// AGENT COMMISSIONS
+// ============================================
+
+model AgentCommission {
+  id                    Int       @id @default(autoincrement())
+  agentId               Int
+  agent                 Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  userId                Int?
+  subscriptionId        Int?
+  
+  // Transaction Details
+  transactionType       String    @db.VarChar(30) // SUBSCRIPTION, RENEWAL, BONUS
+  description           String    @db.Text
+  
+  // Amount
+  baseAmount            Decimal   @db.Decimal(10, 2)
+  commissionRate        Decimal   @db.Decimal(5, 2)
+  commissionAmount      Decimal   @db.Decimal(10, 2)
+  
+  // Deductions
+  tdsPercentage         Decimal   @default(5.00) @db.Decimal(5, 2)
+  tdsAmount             Decimal   @default(0) @db.Decimal(10, 2)
+  serviceFee            Decimal   @default(0) @db.Decimal(10, 2)
+  netCommission         Decimal   @db.Decimal(10, 2)
+  
+  // Status
+  status                String    @default("PENDING") @db.VarChar(20)
+  
+  // Payment Details
+  payoutBatchId         Int?
+  payout                AgentPayout? @relation(fields: [payoutBatchId], references: [id], onDelete: SetNull)
+  paidAt                DateTime?
+  
+  // Admin Actions
+  approvedBy            Int?
+  approvedAt            DateTime?
+  approvalNote          String?   @db.Text
+  
+  // Timestamps
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  @@index([agentId, status])
+  @@index([userId])
+  @@index([status, createdAt(sort: Desc)])
+  @@map("agent_commissions")
+}
+
+// ============================================
+// AGENT PAYOUTS
+// ============================================
+
+model AgentPayout {
+  id                    Int       @id @default(autoincrement())
+  agentId               Int
+  agent                 Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  // Payout Details
+  payoutBatchNumber     String    @unique @db.VarChar(50)
+  periodStart           Date
+  periodEnd             Date
+  
+  // Amounts
+  totalCommission       Decimal   @db.Decimal(12, 2)
+  totalTds              Decimal   @default(0) @db.Decimal(12, 2)
+  totalDeductions       Decimal   @default(0) @db.Decimal(12, 2)
+  netPayoutAmount       Decimal   @db.Decimal(12, 2)
+  
+  // Bank Details (snapshot at payout time)
+  bankAccountNumber     String?   @db.VarChar(50)
+  bankIfscCode          String?   @db.VarChar(20)
+  upiId                 String?   @db.VarChar(100)
+  
+  // Transaction
+  transactionId         String?   @db.VarChar(100)
+  transactionDate       DateTime?
+  
+  // Payment Details
+  paymentMethod         String?   @db.VarChar(30)
+  paymentStatus         String    @default("PENDING") @db.VarChar(20)
+  paymentReference      String?   @db.VarChar(100)
+  
+  // Invoice (stored locally)
+  invoiceNumber         String?   @db.VarChar(50)
+  invoiceUrl            String?   @db.Text // /uploads/exports/invoices/agent-{agentId}-{batchNumber}.pdf
+  
+  // Admin
+  processedBy           Int?
+  processedAt           DateTime?
+  adminNotes            String?   @db.Text
+  
+  // Timestamps
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  
+  // Relations
+  commissions           AgentCommission[]
+  
+  @@index([agentId])
+  @@index([payoutBatchNumber])
+  @@index([paymentStatus])
+  @@index([createdAt(sort: Desc)])
+  @@map("agent_payouts")
+}
+
+// ============================================
+// AGENT ACTIVITY LOGS
+// ============================================
+
+model AgentActivityLog {
+  id                Int       @id @default(autoincrement())
+  agentId           Int
+  agent             Agent     @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  
+  activityType      String    @db.VarChar(50)
+  description       String    @db.Text
+  metadata          String?   @db.Text // JSON
+  
+  ipAddress         String?   @db.Inet
+  userAgent         String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([agentId])
+  @@index([activityType])
+  @@index([createdAt(sort: Desc)])
+  @@map("agent_activity_logs")
+}
+
+// ============================================
+// PROFILE MANAGEMENT
+// ============================================
+
+model Profile {
+  id                    Int       @id @default(autoincrement())
+  userId                Int       @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  profileId             String    @unique @default(cuid()) @db.VarChar(50)
+  
+  // Basic Information
+  firstName             String    @db.VarChar(100)
+  middleName            String?   @db.VarChar(100)
+  lastName              String    @db.VarChar(100)
+  displayName           String?   @db.VarChar(200)
+  dateOfBirth           DateTime  @db.Date
+  gender                Gender
+  maritalStatus         MaritalStatus
+  
+  // Religious Information
+  religion              Religion
+  caste                 String?   @db.VarChar(100)
+  subCaste              String?   @db.VarChar(100)
+  motherTongue          MotherTongue
+  gothram               String?   @db.VarChar(100)
+  
+  // Chhattisgarh-Specific Fields (NEW)
+  nativeDistrict        String?   @db.VarChar(100) // Native district in Chhattisgarh
+  nativeTehsil          String?   @db.VarChar(100) // Tehsil/Block
+  nativeVillage         String?   @db.VarChar(100) // Village/Town name
+  speaksChhattisgarhi   Boolean   @default(true)   // Speaks Chhattisgarhi language?
+  
+  // Physical Attributes
+  height                Int?      // in cm
+  weight                Int?      // in kg
+  bloodGroup            String?   @db.VarChar(5)
+  complexion            String?   @db.VarChar(30)
+  bodyType              String?   @db.VarChar(30)
+  physicalDisability    String?   @db.Text
+  
+  // Lifestyle
+  diet                  String?   @db.VarChar(30)
+  smokingHabit          String?   @db.VarChar(30)
+  drinkingHabit         String?   @db.VarChar(30)
+  
+  // Location
+  country               String    @db.VarChar(100)
+  state                 String    @db.VarChar(100)
+  city                  String    @db.VarChar(100)
+  residencyStatus       String?   @db.VarChar(50)
+  
+  // About
+  bio                   String?   @db.Text
+  hobbies               String?   @db.Text
+  interests             String?   @db.Text
+  aboutFamily           String?   @db.Text
+  partnerExpectations   String?   @db.Text
+  
+  // Family Information
+  fatherName            String?   @db.VarChar(100)
+  fatherOccupation      String?   @db.VarChar(100)
+  fatherStatus          String?   @db.VarChar(30) // EMPLOYED, RETIRED, DECEASED
+  
+  motherName            String?   @db.VarChar(100)
+  motherOccupation      String?   @db.VarChar(100)
+  motherStatus          String?   @db.VarChar(30)
+  
+  numberOfBrothers      Int       @default(0)
+  numberOfSisters       Int       @default(0)
+  brothersMarried       Int       @default(0)
+  sistersMarried        Int       @default(0)
+  
+  familyType            String?   @db.VarChar(30) // NUCLEAR, JOINT
+  familyValues          String?   @db.VarChar(30) // TRADITIONAL, MODERATE, LIBERAL
+  familyStatus          String?   @db.VarChar(30) // MIDDLE_CLASS, UPPER_MIDDLE, RICH
+  familyIncome          String?   @db.VarChar(50)
+  ancestralOrigin       String?   @db.VarChar(100)
+  
+  // Horoscope (Hindu specific)
+  manglik               Boolean?
+  birthTime             String?   @db.VarChar(10)
+  birthPlace            String?   @db.VarChar(100)
+  rashi                 String?   @db.VarChar(50)
+  nakshatra             String?   @db.VarChar(50)
+  
+  // Professional (summary - detailed in Occupation model)
+  highestEducation      String?   @db.VarChar(30)
+  educationDetails      String?   @db.Text
+  collegeName           String?   @db.VarChar(200)
+  
+  occupationType        String?   @db.VarChar(30)
+  occupation            String?   @db.VarChar(100)
+  designation           String?   @db.VarChar(100)
+  companyName           String?   @db.VarChar(200)
+  annualIncome          String?   @db.VarChar(50)
+  workLocation          String?   @db.VarChar(100)
+  
+  // Settings
+  visibility            String    @default("PUBLIC") @db.VarChar(30)
+  showContactInfo       Boolean   @default(false)
+  allowPhotoRequest     Boolean   @default(true)
+  showHoroscope         Boolean   @default(false)
+  
+  // Metrics
+  profileCompleteness   Int       @default(0)
+  profileScore          Int       @default(0) // Quality score
+  viewCount             Int       @default(0)
+  contactViewCount      Int       @default(0)
+  shortlistCount        Int       @default(0)
+  matchRequestCount     Int       @default(0)
+  
+  // Verification
+  isVerified            Boolean   @default(false)
+  verifiedAt            DateTime?
+  verificationNote      String?   @db.Text
+  
+  // Profile Status
+  isDraft               Boolean   @default(true)
+  isPublished           Boolean   @default(false)
+  publishedAt           DateTime?
+  
+  // Timestamps
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  deletedAt             DateTime?
+  
+  // Relations
+  media                 Media[]
+  education             Education[]
+  occupations           Occupation[]
+  partnerPreference     PartnerPreference?
+  
+  @@index([userId])
+  @@index([profileId])
+  @@index([gender, dateOfBirth])
+  @@index([religion, caste])
+  @@index([city, state, country])
+  @@index([maritalStatus])
+  @@index([isVerified, isPublished])
+  @@index([profileCompleteness(sort: Desc)])
+  @@index([nativeDistrict]) // For Chhattisgarh-specific searches
+  @@index([speaksChhattisgarhi])
+  @@map("profiles")
+}
+
+// ============================================
+// PARTNER PREFERENCES
+// ============================================
+
+model PartnerPreference {
+  id                Int       @id @default(autoincrement())
+  profileId         Int       @unique
+  profile           Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  // Age Preference
+  ageFrom           Int?
+  ageTo             Int?
+  
+  // Height Preference
+  heightFrom        Int?      // in cm
+  heightTo          Int?
+  
+  // Religion & Caste
+  religion          String?   @db.Text // JSON array
+  caste             String?   @db.Text
+  motherTongue      String?   @db.Text
+  
+  // Marital Status
+  maritalStatus     String?   @db.Text
+  
+  // Location
+  country           String?   @db.Text
+  state             String?   @db.Text
+  city              String?   @db.Text
+  residencyStatus   String?   @db.Text
+  
+  // Chhattisgarh-Specific (NEW)
+  nativeDistrict    String?   @db.Text // Preferred native districts
+  mustSpeakChhattisgarhi Boolean? // Must speak Chhattisgarhi?
+  
+  // Education & Occupation
+  education         String?   @db.Text
+  occupation        String?   @db.Text
+  annualIncome      String?   @db.VarChar(100)
+  
+  // Lifestyle
+  diet              String?   @db.Text
+  smoking           String?   @db.VarChar(30)
+  drinking          String?   @db.VarChar(30)
+  
+  // Horoscope
+  manglik           Boolean?
+  
+  // Other
+  description       String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("partner_preferences")
+}
+
+// ============================================
+// EDUCATION
+// ============================================
+
+model Education {
+  id                Int       @id @default(autoincrement())
+  profileId         Int
+  profile           Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  degree            String    @db.VarChar(100)
+  field             String?   @db.VarChar(100)
+  institution       String    @db.VarChar(200)
+  university        String?   @db.VarChar(200)
+  yearOfPassing     Int?
+  grade             String?   @db.VarChar(20)
+  isCurrent         Boolean   @default(false)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([profileId])
+  @@map("education")
+}
+
+// ============================================
+// OCCUPATION
+// ============================================
+
+model Occupation {
+  id                Int       @id @default(autoincrement())
+  profileId         Int
+  profile           Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  
+  companyName       String    @db.VarChar(200)
+  designation       String    @db.VarChar(100)
+  employmentType    String    @db.VarChar(50)
+  industry          String?   @db.VarChar(100)
+  annualIncome      String?   @db.VarChar(50)
+  startDate         DateTime? @db.Date
+  endDate           DateTime? @db.Date
+  isCurrent         Boolean   @default(true)
+  location          String?   @db.VarChar(100)
+  description       String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([profileId])
+  @@map("occupations")
+}
+
+// ============================================
+// MEDIA MANAGEMENT (LOCAL STORAGE)
+// ============================================
+
+model Media {
+  id                Int       @id @default(autoincrement())
+  profileId         Int?
+  profile           Profile?  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type              MediaType
+  
+  // LOCAL FILE PATHS (Changed from S3 URLs)
+  url               String    @db.Text  // /uploads/profiles/{userId}/original/photo-{timestamp}.jpg
+  thumbnailUrl      String?   @db.Text  // /uploads/profiles/{userId}/thumbnails/photo-{timestamp}-150x150.jpg
+  mediumUrl         String?   @db.Text  // /uploads/profiles/{userId}/medium/photo-{timestamp}-400x400.jpg
+  largeUrl          String?   @db.Text  // /uploads/profiles/{userId}/large/photo-{timestamp}-800x800.jpg
+  
+  fileName          String    @db.VarChar(255)
+  fileSize          Int?      // in bytes
+  mimeType          String?   @db.VarChar(100)
+  
+  displayOrder      Int       @default(0)
+  isDefault         Boolean   @default(false)
+  isVisible         Boolean   @default(true)
+  isPrivate         Boolean   @default(false)
+  
+  verificationStatus VerificationStatus @default(PENDING)
+  verifiedAt        DateTime?
+  verifiedBy        Int?
+  rejectionReason   String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  // Relations
+  privacySettings   PhotoPrivacySettings?
+  viewRequests      PhotoViewRequest[]
+  
+  @@index([profileId])
+  @@index([userId])
+  @@index([type])
+  @@index([verificationStatus])
+  @@map("media")
+}
+
+// ============================================
+// MATCHING SYSTEM
+// ============================================
+
+model MatchRequest {
+  id                Int       @id @default(autoincrement())
+  senderId          Int
+  sender            User      @relation("MatchRequestSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId        Int
+  receiver          User      @relation("MatchRequestReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  status            MatchRequestStatus @default(PENDING)
+  message           String?   @db.Text
+  responseMessage   String?   @db.Text
+  
+  respondedAt       DateTime?
+  expiresAt         DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@unique([senderId, receiverId])
+  @@index([senderId, status])
+  @@index([receiverId, status])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("match_requests")
+}
+
+model ProfileView {
+  id                Int       @id @default(autoincrement())
+  viewerId          Int
+  viewer            User      @relation("ProfileViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  profileId         Int
+  profile           User      @relation("ProfileViewed", fields: [profileId], references: [id], onDelete: Cascade)
+  
+  isAnonymous       Boolean   @default(false)
+  viewedAt          DateTime  @default(now())
+  
+  @@index([viewerId])
+  @@index([profileId, viewedAt(sort: Desc)])
+  @@map("profile_views")
+}
+
+model Shortlist {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation("ShortlistGiver", fields: [userId], references: [id], onDelete: Cascade)
+  shortlistedUserId Int
+  shortlistedUser   User      @relation("ShortlistReceiver", fields: [shortlistedUserId], references: [id], onDelete: Cascade)
+  
+  note              String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  
+  @@unique([userId, shortlistedUserId])
+  @@index([userId])
+  @@map("shortlists")
+}
+
+model BlockedUser {
+  id                Int       @id @default(autoincrement())
+  blockerId         Int
+  blocker           User      @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId         Int
+  blocked           User      @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+  
+  reason            String?   @db.VarChar(100)
+  
+  createdAt         DateTime  @default(now())
+  
+  @@unique([blockerId, blockedId])
+  @@index([blockerId])
+  @@map("blocked_users")
+}
+
+// ============================================
+// MESSAGING SYSTEM
+// ============================================
+
+model Message {
+  id                Int       @id @default(autoincrement())
+  senderId          Int
+  sender            User      @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId        Int
+  receiver          User      @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  
+  content           String    @db.Text
+  attachmentUrl     String?   @db.Text  // LOCAL PATH: /uploads/chat-media/{conversationId}/img-{timestamp}.jpg
+  attachmentType    String?   @db.VarChar(50)
+  
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  
+  isDeleted         Boolean   @default(false)
+  deletedAt         DateTime?
+  deletedBy         Int?
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([senderId, receiverId])
+  @@index([receiverId, isRead])
+  @@index([createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+// ============================================
+// SUBSCRIPTION & PAYMENTS
+// ============================================
+
+model SubscriptionPlan {
+  id                Int       @id @default(autoincrement())
+  name              String    @unique @db.VarChar(100)
+  slug              String    @unique @db.VarChar(100)
+  
+  // Multi-language names (NEW)
+  nameEn            String    @db.VarChar(100) // English
+  nameHi            String    @db.VarChar(100) // Hindi
+  nameCg            String    @db.VarChar(100) // Chhattisgarhi
+  
+  description       String?   @db.Text
+  price             Decimal   @db.Decimal(10, 2)
+  currency          String    @default("INR") @db.VarChar(5)
+  duration          Int       // in days
+  
+  features          String?   @db.Text // JSON array
+  
+  maxContactViews   Int       @default(0) // 0 = unlimited
+  maxMessagesSend   Int       @default(0)
+  maxInterestsSend  Int       @default(0)
+  canSeeProfileVisitors Boolean @default(false)
+  priorityListing   Boolean   @default(false)
+  verifiedBadge     Boolean   @default(false)
+  incognitoMode     Boolean   @default(false)
+  dedicatedManager  Boolean   @default(false)
+  
+  isActive          Boolean   @default(true)
+  displayOrder      Int       @default(0)
+  isPopular         Boolean   @default(false)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  subscriptions     UserSubscription[]
+  
+  @@map("subscription_plans")
+}
+
+model UserSubscription {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId            Int
+  plan              SubscriptionPlan @relation(fields: [planId], references: [id])
+  
+  status            SubscriptionStatus @default(PENDING)
+  startDate         DateTime
+  endDate           DateTime
+  
+  // Usage Tracking
+  contactViewsUsed  Int       @default(0)
+  messagesUsed      Int       @default(0)
+  interestsUsed     Int       @default(0)
+  
+  autoRenew         Boolean   @default(false)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  payments          Payment[]
+  
+  @@index([userId, status])
+  @@index([endDate])
+  @@map("user_subscriptions")
+}
+
+model Payment {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subscriptionId    Int?
+  subscription      UserSubscription? @relation(fields: [subscriptionId], references: [id])
+  
+  amount            Decimal   @db.Decimal(10, 2)
+  currency          String    @default("INR") @db.VarChar(5)
+  
+  // Payment Gateway Details (Razorpay ONLY)
+  transactionId     String    @unique @db.VarChar(255)
+  paymentGateway    String    @default("RAZORPAY") @db.VarChar(50)
+  paymentMethod     String?   @db.VarChar(50)
+  
+  // Razorpay Specific
+  razorpayOrderId   String?   @db.VarChar(255)
+  razorpayPaymentId String?   @db.VarChar(255)
+  razorpaySignature String?   @db.VarChar(255)
+  
+  status            PaymentStatus @default(PENDING)
+  
+  orderId           String?   @db.VarChar(255)
+  receiptUrl        String?   @db.Text  // LOCAL PATH: /uploads/exports/receipts/receipt-{userId}-{timestamp}.pdf
+  
+  failureReason     String?   @db.Text
+  refundAmount      Decimal?  @db.Decimal(10, 2)
+  refundReason      String?   @db.Text
+  
+  paidAt            DateTime?
+  refundedAt        DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([transactionId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("payments")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notification {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type              NotificationType
+  channel           NotificationChannel
+  
+  title             String    @db.VarChar(255)
+  message           String    @db.Text
+  data              String?   @db.Text // JSON
+  
+  actionUrl         String?   @db.Text
+  
+  isRead            Boolean   @default(false)
+  readAt            DateTime?
+  
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  failureReason     String?   @db.Text
+  
+  // Language (NEW)
+  language          Language  @default(HI)
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId, isRead])
+  @@index([createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+// ============================================
+// ADMIN SYSTEM
+// ============================================
+
+model Admin {
+  id                Int       @id @default(autoincrement())
+  email             String    @unique @db.VarChar(255)
+  password          String    @db.VarChar(255)
+  
+  firstName         String    @db.VarChar(100)
+  lastName          String    @db.VarChar(100)
+  
+  role              AdminRole @default(ADMIN)
+  
+  // Language Preference (NEW)
+  preferredLanguage Language  @default(HI)
+  
+  isActive          Boolean   @default(true)
+  lastLoginAt       DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  // Relations
+  activityLogs      AdminActivityLog[]
+  agentsCreated     Agent[]   @relation("AgentCreatedBy")
+  
+  @@map("admins")
+}
+
+model AdminActivityLog {
+  id                Int       @id @default(autoincrement())
+  adminId           Int
+  admin             Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  
+  action            String    @db.VarChar(100)
+  description       String    @db.Text
+  entityType        String?   @db.VarChar(50)
+  entityId          Int?
+  metadata          String?   @db.Text // JSON
+  
+  ipAddress         String?   @db.Inet
+  userAgent         String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([adminId])
+  @@index([createdAt(sort: Desc)])
+  @@map("admin_activity_logs")
+}
+
+model Report {
+  id                Int       @id @default(autoincrement())
+  reporterId        Int
+  reporter          User      @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reportedUserId    Int
+  reportedUser      User      @relation("Reported", fields: [reportedUserId], references: [id], onDelete: Cascade)
+  
+  reason            ReportReason
+  description       String    @db.Text
+  evidence          String?   @db.Text // JSON array of local file paths
+  
+  status            ReportStatus @default(PENDING)
+  reviewNote        String?   @db.Text
+  actionTaken       String?   @db.VarChar(100)
+  
+  reviewedAt        DateTime?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@index([reportedUserId, status])
+  @@index([status])
+  @@map("reports")
+}
+
+// ============================================
+// ACTIVITY & ANALYTICS
+// ============================================
+
+model ActivityLog {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  action            String    @db.VarChar(100)
+  description       String    @db.Text
+  metadata          String?   @db.Text // JSON
+  
+  ipAddress         String?   @db.Inet
+  userAgent         String?   @db.Text
+  
+  createdAt         DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
+  @@map("activity_logs")
+}
+
+model SystemConfig {
+  id                Int       @id @default(autoincrement())
+  key               String    @unique @db.VarChar(100)
+  value             String    @db.Text
+  dataType          String    @default("string") @db.VarChar(20)
+  category          String    @db.VarChar(50)
+  description       String?   @db.Text
+  isPublic          Boolean   @default(false)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  
+  @@map("system_config")
+}
+
+// ============================================
+// PRIVACY SETTINGS
+// ============================================
+
+model ProfilePrivacySettings {
+  id                        Int      @id @default(autoincrement())
+  userId                    Int      @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  profileVisibility         String   @default("PUBLIC") @db.VarChar(30)
+  showLastName              Boolean  @default(true)
+  showExactAge              Boolean  @default(false)
+  showDateOfBirth           Boolean  @default(false)
+  showPhoneNumber           String   @default("MATCHED") @db.VarChar(30)
+  showEmail                 String   @default("MATCHED") @db.VarChar(30)
+  showSocialMedia           String   @default("HIDDEN") @db.VarChar(30)
+  showExactLocation         Boolean  @default(false)
+  showCity                  Boolean  @default(true)
+  showState                 Boolean  @default(true)
+  showCompanyName           Boolean  @default(false)
+  showAnnualIncome          String   @default("MATCHED") @db.VarChar(30)
+  showWorkLocation          Boolean  @default(true)
+  showFamilyDetails         String   @default("REGISTERED") @db.VarChar(30)
+  showParentOccupation      Boolean  @default(false)
+  showSiblingDetails        Boolean  @default(true)
+  showHoroscope             Boolean  @default(false)
+  showHoroscopeTo           String   @default("MATCHED") @db.VarChar(30)
+  showBirthTime             Boolean  @default(false)
+  showBirthPlace            Boolean  @default(false)
+  showDiet                  Boolean  @default(true)
+  showSmokingDrinking       String   @default("REGISTERED") @db.VarChar(30)
+  showLastActive            Boolean  @default(true)
+  showOnlineStatus          Boolean  @default(true)
+  showProfileViews          Boolean  @default(false)
+  showWhoViewedProfile      Boolean  @default(false)
+  showShortlistedBy         Boolean  @default(false)
+  
+  // Chhattisgarh-Specific (NEW)
+  showNativeDistrict        Boolean  @default(true)
+  showNativeVillage         Boolean  @default(false)
+  
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  
+  @@map("profile_privacy_settings")
+}
+
+model ContactRequest {
+  id            Int       @id @default(autoincrement())
+  requesterId   Int
+  requester     User      @relation("ContactRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  profileId     Int
+  profile       User      @relation("ContactReceiver", fields: [profileId], references: [id], onDelete: Cascade)
+  requestType   String    @db.VarChar(30)
+  message       String?   @db.Text
+  status        String    @default("PENDING") @db.VarChar(20)
+  expiresAt     DateTime
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  
+  @@unique([requesterId, profileId, requestType, status])
+  @@index([profileId, status])
+  @@index([requesterId])
+  @@map("contact_requests")
+}
+
+model PhotoPrivacySettings {
+  id                   Int      @id @default(autoincrement())
+  mediaId              Int      @unique
+  media                Media    @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  userId               Int
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  visibility           String   @default("REGISTERED") @db.VarChar(30)
+  enableWatermark      Boolean  @default(true)
+  watermarkText        String?  @db.VarChar(100)
+  watermarkPosition    String   @default("BOTTOM_RIGHT") @db.VarChar(20)
+  preventScreenshots   Boolean  @default(true)
+  disableRightClick    Boolean  @default(true)
+  blurForNonPremium    Boolean  @default(false)
+  blurLevel            String   @default("MEDIUM") @db.VarChar(10)
+  allowDownload        Boolean  @default(false)
+  allowViewRequests    Boolean  @default(true)
+  autoApprovePremium   Boolean  @default(false)
+  autoApproveVerified  Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  
+  @@map("photo_privacy_settings")
+}
+
+model PhotoViewRequest {
+  id          Int       @id @default(autoincrement())
+  requesterId Int
+  requester   User      @relation("PhotoViewRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+  profileId   Int
+  profile     User      @relation("PhotoViewReceiver", fields: [profileId], references: [id], onDelete: Cascade)
+  photoId     Int
+  photo       Media     @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  message     String?   @db.Text
+  status      String    @default("PENDING") @db.VarChar(20)
+  validUntil  DateTime?
+  viewCount   Int       @default(0)
+  maxViews    Int       @default(10)
+  approvedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  
+  @@unique([requesterId, photoId, status])
+  @@index([profileId, status])
+  @@map("photo_view_requests")
+}
+
+model CommunicationPreferences {
+  id                              Int      @id @default(autoincrement())
+  userId                          Int      @unique
+  user                            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  allowMatchRequestsFrom          String   @default("EVERYONE") @db.VarChar(30)
+  minAgeForRequests               Int?
+  maxAgeForRequests               Int?
+  allowedReligions                String?  @db.Text
+  allowedLocations                String?  @db.Text
+  minEducationLevel               String?  @db.VarChar(30)
+  allowMessagesFrom               String   @default("MATCHED_ONLY") @db.VarChar(30)
+  blockUnverifiedProfiles         Boolean  @default(false)
+  requireMinProfileCompleteness   Int      @default(40)
+  allowAnonymousViews             Boolean  @default(true)
+  notifyOnView                    Boolean  @default(false)
+  blockRepeatedViews              Boolean  @default(false)
+  autoResponseEnabled             Boolean  @default(false)
+  autoResponseMessage             String?  @db.Text
+  sendAutoResponseToNewMatches    Boolean  @default(true)
+  maxMatchRequestsPerDay          Int      @default(100)
+  maxMessagesPerDay               Int      @default(50)
+  
+  // Chhattisgarh-Specific (NEW)
+  preferChhattisgarhi             Boolean  @default(true)  // Prefer Chhattisgarhi speakers
+  
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  
+  @@map("communication_preferences")
+}
+
+// ============================================
+// SEARCH VISIBILITY SETTINGS (CONTINUED)
+// ============================================
+
+model SearchVisibilitySettings {
+  id                      Int       @id @default(autoincrement())
+  userId                  Int       @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  showInSearch            Boolean   @default(true)
+  showInSuggestions       Boolean   @default(true)
+  visibleToFreeUsers      Boolean   @default(true)
+  visibleToPremiumUsers   Boolean   @default(true)
+  visibleToVerifiedUsers  Boolean   @default(true)
+  showOnlyInCountry       Boolean   @default(false)
+  showOnlyInState         Boolean   @default(false)
+  showOnlyInCity          Boolean   @default(false)
+  excludedCountries       String?   @db.Text
+  showOnlyToAgeRange      Boolean   @default(false)
+  visibleMinAge           Int?
+  visibleMaxAge           Int?
+  incognitoEnabled        Boolean   @default(false)
+  hideFromSearch          Boolean   @default(false)
+  hideLastActive          Boolean   @default(false)
+  browseAnonymously       Boolean   @default(false)
+  profilePaused           Boolean   @default(false)
+  pauseReason             String?   @db.VarChar(100)
+  pausedUntil             DateTime?
+  
+  // Chhattisgarh-Specific (NEW)
+  showOnlyInChhattisgarh  Boolean   @default(false)  // Show only to Chhattisgarh users
+  prioritizeChhattisgarhi Boolean   @default(true)   // Prioritize in Chhattisgarhi searches
+  
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  
+  @@map("search_visibility_settings")
+}
+
+// ============================================
+// DATA PRIVACY SETTINGS (GDPR COMPLIANCE)
+// ============================================
+
+model DataPrivacySettings {
+  id                               Int       @id @default(autoincrement())
+  userId                           Int       @unique
+  user                             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  consentToProcessData             Boolean   @default(true)
+  consentToMarketing               Boolean   @default(false)
+  consentToAnalytics               Boolean   @default(true)
+  consentToThirdPartySharing       Boolean   @default(false)
+  consentDate                      DateTime?
+  consentIpAddress                 String?   @db.Inet
+  dataRetentionPeriod              Int       @default(365)
+  autoDeleteAfterInactivity        Boolean   @default(false)
+  inactivityPeriod                 Int       @default(180)
+  allowDataForAiTraining           Boolean   @default(false)
+  allowDataForResearch             Boolean   @default(false)
+  allowProfileInSuccessStories     Boolean   @default(true)
+  lastDataExportDate               DateTime?
+  dataExportCount                  Int       @default(0)
+  createdAt                        DateTime  @default(now())
+  updatedAt                        DateTime  @updatedAt
+  
+  @@map("data_privacy_settings")
+}
+
+// ============================================
+// DATA DELETION REQUESTS
+// ============================================
+
+model DataDeletionRequest {
+  id                    Int       @id @default(autoincrement())
+  userId                Int
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deletionType          String    @db.VarChar(30) // SOFT, HARD, IMMEDIATE
+  reason                String?   @db.Text
+  scheduledDeletionDate DateTime
+  status                String    @default("PENDING") @db.VarChar(20)
+  canCancel             Boolean   @default(true)
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  
+  @@index([userId])
+  @@index([status, scheduledDeletionDate])
+  @@map("data_deletion_requests")
+}
+
+// ============================================
+// DATA EXPORT REQUESTS (GDPR)
+// ============================================
+
+model DataExportRequest {
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exportFormat      String    @default("JSON") @db.VarChar(10)
+  status            String    @default("PENDING") @db.VarChar(20)
+  fileUrl           String?   @db.Text // LOCAL PATH: /uploads/exports/user-data-{userId}-{timestamp}.json
+  fileSizeBytes     BigInt?
+  expiresAt         DateTime?
+  downloaded        Boolean   @default(false)
+  downloadedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+  
+  @@index([userId])
+  @@index([status])
+  @@map("data_export_requests")
+}
+
+// ============================================
+// ACCOUNT SECURITY SETTINGS
+// ============================================
+
+model AccountSecuritySettings {
+  id                      Int       @id @default(autoincrement())
+  userId                  Int       @unique
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  twoFactorEnabled        Boolean   @default(false)
+  twoFactorMethod         String?   @db.VarChar(20) // SMS, EMAIL, BOTH
+  twoFactorSecret         String?   @db.VarChar(100)
+  backupCodes             String?   @db.Text
+  requireOtpNewDevice     Boolean   @default(true)
+  requireOtpNewLocation   Boolean   @default(true)
+  sessionTimeout          Int       @default(60)
+  maxActiveSessions       Int       @default(5)
+  lastPasswordChange      DateTime?
+  forcePasswordChange     Boolean   @default(false)
+  passwordExpiresAt       DateTime?
+  recoveryEmail           String?   @db.VarChar(255)
+  recoveryPhone           String?   @db.VarChar(20)
+  recoveryEmailVerified   Boolean   @default(false)
+  recoveryPhoneVerified   Boolean   @default(false)
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  
+  @@map("account_security_settings")
+}
+
+// ============================================
+// NOTIFICATION PREFERENCES
+// ============================================
+
+model NotificationPreferences {
+  id                              Int      @id @default(autoincrement())
+  userId                          Int      @unique
+  user                            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Match Request Notifications
+  matchRequestInApp               Boolean  @default(true)
+  matchRequestSms                 Boolean  @default(true)
+  matchRequestEmail               Boolean  @default(false)
+  matchRequestPush                Boolean  @default(true)
+  
+  // Match Accepted Notifications
+  matchAcceptedInApp              Boolean  @default(true)
+  matchAcceptedSms                Boolean  @default(true)
+  matchAcceptedEmail              Boolean  @default(true)
+  matchAcceptedPush               Boolean  @default(true)
+  
+  // Message Notifications
+  newMessageInApp                 Boolean  @default(true)
+  newMessageSms                   Boolean  @default(false)
+  newMessageEmail                 Boolean  @default(false)
+  newMessagePush                  Boolean  @default(true)
+  
+  // Profile Activity Notifications
+  profileViewInApp                Boolean  @default(true)
+  profileViewEmail                Boolean  @default(false)
+  shortlistedInApp                Boolean  @default(true)
+  shortlistedPush                 Boolean  @default(true)
+  
+  // Subscription Notifications
+  subscriptionExpiryInApp         Boolean  @default(true)
+  subscriptionExpirySms           Boolean  @default(true)
+  subscriptionExpiryEmail         Boolean  @default(true)
+  
+  // Security Alerts
+  securityAlertsInApp             Boolean  @default(true)
+  securityAlertsSms               Boolean  @default(true)
+  securityAlertsEmail             Boolean  @default(true)
+  
+  // Marketing Notifications
+  promotionalOffersEmail          Boolean  @default(false)
+  promotionalOffersSms            Boolean  @default(false)
+  newsletterEmail                 Boolean  @default(false)
+  
+  // General Settings
+  enableAllNotifications          Boolean  @default(true)
+  
+  // Quiet Hours
+  quietHoursEnabled               Boolean  @default(false)
+  quietHoursStart                 String?  @db.VarChar(5) // HH:MM format
+  quietHoursEnd                   String?  @db.VarChar(5)
+  
+  // Digest Mode
+  digestModeEnabled               Boolean  @default(false)
+  digestFrequency                 String   @default("DAILY") @db.VarChar(10)
+  digestTime                      String   @default("09:00") @db.VarChar(5)
+  
+  // Language for Notifications (NEW)
+  notificationLanguage            Language @default(HI)
+  
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+  
+  @@map("notification_preferences")
 }
