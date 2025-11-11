@@ -1,13 +1,20 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../utils/constants.js';
-import { getPaginationParams, getPaginationMetadata, calculateAge } from '../utils/helpers.js';
+import {
+  getPaginationParams,
+  getPaginationMetadata,
+  calculateAge,
+} from '../utils/helpers.js';
+import { updateProfileCompleteness } from '../utils/profile.helpers.js';
 import { logger } from '../config/logger.js';
+// Import uploadService to delete S3 objects
+import { uploadService } from './upload.service.js';
 
 /**
  * Create user profile
  * @param {string} userId - User ID
- * @param {Object} data - Profile data
+ * @param {Object} data - Profile data (validated)
  * @returns {Promise<Object>}
  */
 export const createProfile = async (userId, data) => {
@@ -26,29 +33,24 @@ export const createProfile = async (userId, data) => {
         userId,
         ...data,
       },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-          },
-        },
-      },
     });
+
+    // Calculate and update completeness score
+    const score = await updateProfileCompleteness(prisma, userId);
+    profile.profileCompleteness = score;
 
     logger.info(`Profile created for user: ${userId}`);
     return profile;
   } catch (error) {
     logger.error('Error in createProfile:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error creating profile');
   }
 };
 
 /**
  * Get profile by user ID
- * @param {string} userId - User ID
+ * @param {number} userId - User ID
  * @returns {Promise<Object>}
  */
 export const getProfileByUserId = async (userId) => {
@@ -59,12 +61,14 @@ export const getProfileByUserId = async (userId) => {
         user: {
           select: {
             id: true,
-            email: true,
-            name: true,
+            email: true, // Safe to show email on a profile page
             role: true,
             createdAt: true,
           },
         },
+        media: true, // Include all media (photos, documents)
+        education: true,
+        occupations: true,
       },
     });
 
@@ -79,41 +83,39 @@ export const getProfileByUserId = async (userId) => {
     };
   } catch (error) {
     logger.error('Error in getProfileByUserId:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving profile');
   }
 };
 
 /**
  * Update profile
  * @param {string} userId - User ID
- * @param {Object} data - Update data
+ * @param {Object} data - Update data (validated and safe)
  * @returns {Promise<Object>}
  */
 export const updateProfile = async (userId, data) => {
   try {
-    const profile = await prisma.profile.update({
+    // Data is pre-validated by Zod and .strict() in the validation schema,
+    // so we can safely pass it. 'isVerified', 'profileCompleteness', etc., are rejected.
+    const updatedProfile = await prisma.profile.update({
       where: { userId },
       data,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            name: true,
-            role: true,
-          },
-        },
-      },
     });
 
+    // Recalculate and update completeness score
+    const score = await updateProfileCompleteness(prisma, userId);
+    updatedProfile.profileCompleteness = score;
+
     logger.info(`Profile updated for user: ${userId}`);
+    
     return {
-      ...profile,
-      age: calculateAge(profile.dateOfBirth),
+      ...updatedProfile,
+      age: calculateAge(updatedProfile.dateOfBirth),
     };
   } catch (error) {
     logger.error('Error in updateProfile:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating profile');
   }
 };
 
@@ -124,6 +126,9 @@ export const updateProfile = async (userId, data) => {
  */
 export const deleteProfile = async (userId) => {
   try {
+    // Note: This only deletes the profile.
+    // The user's account (User model) will still exist.
+    // The 'deleteMe' in user.service.js is the correct "delete account" flow.
     await prisma.profile.delete({
       where: { userId },
     });
@@ -131,56 +136,60 @@ export const deleteProfile = async (userId) => {
     logger.info(`Profile deleted for user: ${userId}`);
   } catch (error) {
     logger.error('Error in deleteProfile:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting profile');
   }
 };
 
 /**
  * Search profiles with filters
- * @param {Object} filters - Search filters
- * @param {Object} query - Query parameters
+ * @param {Object} query - Query parameters (validated)
  * @returns {Promise<Object>}
  */
-export const searchProfiles = async (filters, query) => {
+export const searchProfiles = async (query) => {
   try {
     const { page, limit, skip } = getPaginationParams(query);
+    const {
+      gender,
+      minAge,
+      maxAge,
+      religions,
+      castes,
+      maritalStatus,
+      minHeight,
+      maxHeight,
+    } = query;
 
-    const where = {};
+    const where = {
+      isPublished: true, // Only search published profiles
+    };
 
-    if (filters.gender) {
-      where.gender = filters.gender;
+    if (gender) where.gender = gender;
+    if (maritalStatus) where.maritalStatus = maritalStatus;
+
+    // PERFORMANCE FIX: Use 'in' for enums, not 'contains'
+    if (religions && religions.length > 0) {
+      where.religion = { in: religions };
+    }
+    
+    // PERFORMANCE NOTE: 'in' is better, but 'contains' is kept for flexibility
+    // For true performance, use Full-Text Search on an indexed column.
+    if (castes && castes.length > 0) {
+      where.caste = { in: castes, mode: 'insensitive' };
     }
 
-    if (filters.maritalStatus) {
-      where.maritalStatus = filters.maritalStatus;
-    }
+    if (minHeight) where.height = { ...where.height, gte: minHeight };
+    if (maxHeight) where.height = { ...where.height, lte: maxHeight };
 
-    if (filters.religion) {
-      where.religion = { contains: filters.religion, mode: 'insensitive' };
-    }
-
-    if (filters.caste) {
-      where.caste = { contains: filters.caste, mode: 'insensitive' };
-    }
-
-    if (filters.minHeight && filters.maxHeight) {
-      where.height = {
-        gte: filters.minHeight,
-        lte: filters.maxHeight,
-      };
-    }
-
-    if (filters.minAge || filters.maxAge) {
+    if (minAge || maxAge) {
       const today = new Date();
-      
-      if (filters.minAge) {
-        const maxDOB = new Date(today.getFullYear() - filters.minAge, today.getMonth(), today.getDate());
-        where.dateOfBirth = { ...where.dateOfBirth, lte: maxDOB };
+      where.dateOfBirth = {};
+      if (minAge) {
+        const maxDOB = new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate());
+        where.dateOfBirth.lte = maxDOB;
       }
-      
-      if (filters.maxAge) {
-        const minDOB = new Date(today.getFullYear() - filters.maxAge - 1, today.getMonth(), today.getDate());
-        where.dateOfBirth = { ...where.dateOfBirth, gte: minDOB };
+      if (maxAge) {
+        const minDOB = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
+        where.dateOfBirth.gte = minDOB;
       }
     }
 
@@ -190,23 +199,20 @@ export const searchProfiles = async (filters, query) => {
         skip,
         take: limit,
         include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              role: true,
-            },
-          },
+          user: { select: { id: true, role: true } },
+          media: { where: { type: 'PROFILE_PHOTO' } }, // Only get profile photos for search
         },
         orderBy: {
-          createdAt: 'desc',
+          user: {
+            role: 'desc', // Show PREMIUM_USER first (if you change role logic)
+          },
         },
       }),
       prisma.profile.count({ where }),
     ]);
 
     // Add calculated age to each profile
-    const profilesWithAge = profiles.map(profile => ({
+    const profilesWithAge = profiles.map((profile) => ({
       ...profile,
       age: calculateAge(profile.dateOfBirth),
     }));
@@ -219,17 +225,19 @@ export const searchProfiles = async (filters, query) => {
     };
   } catch (error) {
     logger.error('Error in searchProfiles:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error searching profiles');
   }
 };
 
 /**
- * Add photo to profile
+ * [FIXED] Add photo URL to Media table
+ * This is called by upload.controller.js
  * @param {string} userId - User ID
- * @param {string} photoUrl - Photo URL
+ * @param {Object} mediaData - { url, thumbnailUrl, key, ... } from uploadService
+ * @param {string} mediaType - e.g., 'PROFILE_PHOTO'
  * @returns {Promise<Object>}
  */
-export const addPhoto = async (userId, photoUrl) => {
+export const addPhoto = async (userId, mediaData, mediaType) => {
   try {
     const profile = await prisma.profile.findUnique({
       where: { userId },
@@ -239,52 +247,80 @@ export const addPhoto = async (userId, photoUrl) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
 
-    const photos = Array.isArray(profile.photos) ? profile.photos : [];
-    photos.push(photoUrl);
-
-    const updatedProfile = await prisma.profile.update({
-      where: { userId },
-      data: { photos },
+    const newMedia = await prisma.media.create({
+      data: {
+        userId: userId,
+        profileId: profile.id,
+        type: mediaType,
+        url: mediaData.url,
+        thumbnailUrl: mediaData.thumbnailUrl,
+        fileName: mediaData.filename,
+        fileSize: mediaData.size,
+        mimeType: mediaData.mimetype,
+        // You might want to add logic for isDefault
+      },
     });
 
-    logger.info(`Photo added to profile: ${userId}`);
-    return updatedProfile;
+    // Recalculate profile completeness
+    await updateProfileCompleteness(prisma, userId);
+
+    logger.info(`Photo added to Media table for user: ${userId}`);
+    return newMedia;
   } catch (error) {
     logger.error('Error in addPhoto:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error adding photo');
   }
 };
 
 /**
- * Remove photo from profile
- * @param {string} userId - User ID
- * @param {string} photoUrl - Photo URL to remove
- * @returns {Promise<Object>}
+ * [FIXED] Remove photo from Media table and S3
+ * @param {string} userId - User ID (for verification)
+ * @param {number} mediaId - The ID of the media to delete
+ * @returns {Promise<void>}
  */
-export const removePhoto = async (userId, photoUrl) => {
+export const deletePhoto = async (userId, mediaId) => {
   try {
-    const profile = await prisma.profile.findUnique({
-      where: { userId },
+    const media = await prisma.media.findUnique({
+      where: { id: mediaId },
     });
 
-    if (!profile) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.PROFILE_NOT_FOUND);
+    if (!media) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Photo not found');
     }
 
-    const photos = Array.isArray(profile.photos)
-      ? profile.photos.filter(url => url !== photoUrl)
-      : [];
+    // Security check: Ensure the user owns this photo
+    if (media.userId !== userId) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You are not authorized to delete this photo');
+    }
 
-    const updatedProfile = await prisma.profile.update({
-      where: { userId },
-      data: { photos },
+    // 1. Delete from S3
+    // We need the key. Assuming URL is the full S3 URL
+    const key = uploadService.extractKeyFromUrl(media.url);
+    if (key) {
+      await uploadService.deleteFromS3(key);
+    }
+    // Also delete thumbnail if it exists
+    if (media.thumbnailUrl) {
+      const thumbKey = uploadService.extractKeyFromUrl(media.thumbnailUrl);
+      if (thumbKey) {
+        await uploadService.deleteFromS3(thumbKey);
+      }
+    }
+
+    // 2. Delete from database
+    await prisma.media.delete({
+      where: { id: mediaId },
     });
 
-    logger.info(`Photo removed from profile: ${userId}`);
-    return updatedProfile;
+    // 3. Recalculate profile completeness
+    await updateProfileCompleteness(prisma, userId);
+
+    logger.info(`Photo deleted: ${mediaId} by user: ${userId}`);
   } catch (error) {
-    logger.error('Error in removePhoto:', error);
-    throw error;
+    logger.error('Error in deletePhoto:', error);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting photo');
   }
 };
 
@@ -294,6 +330,6 @@ export const profileService = {
   updateProfile,
   deleteProfile,
   searchProfiles,
-  addPhoto,
-  removePhoto,
+  addPhoto, // This is the fixed version
+  deletePhoto, // This is the new, fixed version
 };

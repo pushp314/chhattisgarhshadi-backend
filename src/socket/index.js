@@ -4,9 +4,24 @@ import { logger } from '../config/logger.js';
 import { SOCKET_EVENTS } from '../utils/constants.js';
 import { setupMessageHandlers } from './handlers/message.handler.js';
 import { setupNotificationHandlers } from './handlers/notification.handler.js';
+import { ApiError } from '../utils/ApiError.js';
+import { HTTP_STATUS } from '../utils/constants.js';
 
-// Store online users
+/**
+ * Stores mapping of userId to a Set of socket.id
+ * This correctly handles multiple connections from a single user.
+ */
 const onlineUsers = new Map();
+
+let ioInstance = null;
+
+/**
+ * Get the singleton Socket.io instance
+ * @returns {Server|null}
+ */
+export const getSocketIoInstance = () => {
+  return ioInstance;
+};
 
 /**
  * Initialize Socket.io server
@@ -29,34 +44,46 @@ export const initializeSocket = (httpServer, config) => {
       const token = socket.handshake.auth.token || socket.handshake.query.token;
 
       if (!token) {
-        return next(new Error('Authentication token required'));
+        return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication token required'));
       }
 
+      // FIX: Use `decoded.id` as defined in our jwt.js util
       const decoded = verifyAccessToken(token);
-      socket.userId = decoded.userId || decoded.id;
+      socket.userId = decoded.id; // Use decoded.id
       socket.userEmail = decoded.email;
 
-      logger.info(`Socket authenticated for user: ${socket.userId}`);
+      if (!socket.userId) {
+         return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Invalid token payload'));
+      }
+
+      logger.info(`Socket authenticating for user: ${socket.userId}`);
       next();
     } catch (error) {
-      logger.error('Socket authentication error:', error);
-      next(new Error('Authentication failed'));
+      logger.error('Socket authentication error:', error.message);
+      next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication failed'));
     }
   });
 
   // Connection handler
   io.on(SOCKET_EVENTS.CONNECTION, (socket) => {
-    logger.info(`User connected: ${socket.userId} (${socket.id})`);
+    logger.info(`User connected: ${socket.userId} (Socket ID: ${socket.id})`);
 
-    // Add user to online users
-    onlineUsers.set(socket.userId, socket.id);
+    // --- Presence Management (FIXED for multiple sockets) ---
+    // 1. Add socket to the user's Set
+    if (!onlineUsers.has(socket.userId)) {
+      onlineUsers.set(socket.userId, new Set());
+    }
+    const userSockets = onlineUsers.get(socket.userId);
+    
+    // 2. If this is the first socket for this user, broadcast online status
+    if (userSockets.size === 0) {
+      socket.broadcast.emit(SOCKET_EVENTS.USER_ONLINE, {
+        userId: socket.userId,
+      });
+    }
+    userSockets.add(socket.id);
 
-    // Emit online status to all users
-    socket.broadcast.emit(SOCKET_EVENTS.USER_ONLINE, {
-      userId: socket.userId,
-    });
-
-    // Join user's personal room
+    // 3. Join user's personal room (for targeted emits)
     socket.join(`user:${socket.userId}`);
 
     // Setup message handlers
@@ -67,40 +94,38 @@ export const initializeSocket = (httpServer, config) => {
 
     // Handle disconnect
     socket.on(SOCKET_EVENTS.DISCONNECT, () => {
-      logger.info(`User disconnected: ${socket.userId} (${socket.id})`);
+      logger.info(`User disconnected: ${socket.userId} (Socket ID: ${socket.id})`);
 
-      // Remove user from online users
-      onlineUsers.delete(socket.userId);
+      // --- Presence Management (FIXED for multiple sockets) ---
+      // 1. Remove socket from the user's Set
+      const userSockets = onlineUsers.get(socket.userId);
+      if (userSockets) {
+        userSockets.delete(socket.id);
 
-      // Emit offline status to all users
-      socket.broadcast.emit(SOCKET_EVENTS.USER_OFFLINE, {
-        userId: socket.userId,
-      });
+        // 2. If this was the last socket for this user, broadcast offline status
+        if (userSockets.size === 0) {
+          onlineUsers.delete(socket.userId);
+          socket.broadcast.emit(SOCKET_EVENTS.USER_OFFLINE, {
+            userId: socket.userId,
+          });
+        }
+      }
     });
 
     // Handle errors
     socket.on('error', (error) => {
-      logger.error('Socket error:', error);
+      logger.error(`Socket error for user ${socket.userId}:`, error.message);
     });
   });
 
   logger.info('Socket.io server initialized successfully');
-
+  ioInstance = io;
   return io;
 };
 
 /**
- * Get socket ID for a user
- * @param {string} userId - User ID
- * @returns {string|null} Socket ID
- */
-export const getSocketId = (userId) => {
-  return onlineUsers.get(userId) || null;
-};
-
-/**
- * Check if user is online
- * @param {string} userId - User ID
+ * Check if user is online (has at least one active socket)
+ * @param {number} userId - User ID
  * @returns {boolean}
  */
 export const isUserOnline = (userId) => {
@@ -108,34 +133,17 @@ export const isUserOnline = (userId) => {
 };
 
 /**
- * Get all online users
- * @returns {Array} Array of online user IDs
+ * Get all online user IDs
+ * @returns {number[]} Array of online user IDs
  */
 export const getOnlineUsers = () => {
   return Array.from(onlineUsers.keys());
 };
 
 /**
- * Emit event to specific user
- * @param {Object} io - Socket.io instance
- * @param {string} userId - User ID
- * @param {string} event - Event name
- * @param {Object} data - Event data
+ * [DEPRECATED] This function is unsafe as it only targets one socket.
+ * Do not use. Use io.to(`user:${userId}`).emit(...) instead.
  */
-export const emitToUser = (io, userId, event, data) => {
-  const socketId = getSocketId(userId);
-  if (socketId) {
-    io.to(socketId).emit(event, data);
-  }
-};
-
-/**
- * Emit event to user's room
- * @param {Object} io - Socket.io instance
- * @param {string} userId - User ID
- * @param {string} event - Event name
- * @param {Object} data - Event data
- */
-export const emitToUserRoom = (io, userId, event, data) => {
-  io.to(`user:${userId}`).emit(event, data);
-};
+// export const emitToUser = (io, userId, event, data) => { ... }
+// ^^^ We remove this function entirely to prevent bugs.
+// All emits should be done via rooms, which is handled in controllers/handlers.

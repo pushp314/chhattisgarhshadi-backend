@@ -1,7 +1,7 @@
 import { messageService } from '../../services/message.service.js';
 import { logger } from '../../config/logger.js';
 import { SOCKET_EVENTS } from '../../utils/constants.js';
-import { emitToUser } from '../index.js';
+// We no longer need the local emitToUser, as we use the main `io` instance
 
 /**
  * Setup message event handlers
@@ -12,38 +12,40 @@ export const setupMessageHandlers = (io, socket) => {
   /**
    * Handle sending message
    */
-  socket.on(SOCKET_EVENTS.MESSAGE_SEND, async (data) => {
+  socket.on(SOCKET_EVENTS.MESSAGE_SEND, async (data, callback) => {
     try {
       const { toUserId, content } = data;
 
       if (!toUserId || !content) {
-        socket.emit('error', { message: 'Invalid message data' });
-        return;
+        throw new Error('Invalid message data');
       }
 
-      // Save message to database
+      // 1. Save message to database
+      // This now returns a message with "safe" user objects
       const message = await messageService.sendMessage(
         socket.userId,
         toUserId,
         content
       );
 
-      // Emit to sender (confirmation)
-      socket.emit(SOCKET_EVENTS.MESSAGE_SEND, {
-        success: true,
-        message,
-      });
+      // 2. Emit to receiver's room (will send to all their devices)
+      io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
+      
+      // 3. Acknowledge to sender that the message was sent successfully
+      if (callback) {
+        callback({ success: true, message });
+      }
 
-      // Emit to receiver (if online)
-      emitToUser(io, toUserId, SOCKET_EVENTS.MESSAGE_RECEIVED, message);
-
-      logger.info(`Message sent from ${socket.userId} to ${toUserId}`);
+      logger.info(`Socket message sent from ${socket.userId} to ${toUserId}`);
     } catch (error) {
-      logger.error('Error sending message:', error);
-      socket.emit('error', {
-        message: 'Failed to send message',
-        error: error.message,
-      });
+      logger.error(`Socket error sending message: ${error.message}`);
+      // 4. Acknowledge to sender that there was an error
+      if (callback) {
+        callback({
+          success: false,
+          message: error.message || 'Failed to send message',
+        });
+      }
     }
   });
 
@@ -52,24 +54,24 @@ export const setupMessageHandlers = (io, socket) => {
    */
   socket.on(SOCKET_EVENTS.MESSAGE_READ, async (data) => {
     try {
-      const { userId } = data;
+      // `userId` here is the *other* user, whose messages I am reading
+      const { userId: otherUserId } = data; 
 
-      if (!userId) {
-        socket.emit('error', { message: 'Invalid user ID' });
-        return;
+      if (!otherUserId) {
+        throw new Error('Invalid user ID for marking messages as read');
       }
 
-      // Mark messages as read
-      await messageService.markMessagesAsRead(socket.userId, userId);
+      // Mark messages as read in the database
+      await messageService.markMessagesAsRead(socket.userId, otherUserId);
 
-      // Emit to sender (notify that messages were read)
-      emitToUser(io, userId, SOCKET_EVENTS.MESSAGE_READ, {
-        userId: socket.userId,
+      // Emit to the *other user* (in their room) to notify them
+      io.to(`user:${otherUserId}`).emit(SOCKET_EVENTS.MESSAGE_READ, {
+        byUser: socket.userId,
       });
 
-      logger.info(`Messages marked as read by ${socket.userId} from ${userId}`);
+      logger.info(`Messages marked as read by ${socket.userId} from ${otherUserId}`);
     } catch (error) {
-      logger.error('Error marking messages as read:', error);
+      logger.error('Socket error marking messages as read:', error);
       socket.emit('error', {
         message: 'Failed to mark messages as read',
         error: error.message,
@@ -81,19 +83,12 @@ export const setupMessageHandlers = (io, socket) => {
    * Handle typing start
    */
   socket.on(SOCKET_EVENTS.TYPING_START, (data) => {
-    try {
-      const { toUserId } = data;
-
-      if (!toUserId) {
-        return;
-      }
-
-      // Emit to receiver
-      emitToUser(io, toUserId, SOCKET_EVENTS.TYPING_START, {
-        userId: socket.userId,
+    const { toUserId } = data;
+    if (toUserId) {
+      // Emit to the receiver's room
+      io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.TYPING_START, {
+        fromUser: socket.userId,
       });
-    } catch (error) {
-      logger.error('Error handling typing start:', error);
     }
   });
 
@@ -101,19 +96,12 @@ export const setupMessageHandlers = (io, socket) => {
    * Handle typing stop
    */
   socket.on(SOCKET_EVENTS.TYPING_STOP, (data) => {
-    try {
-      const { toUserId } = data;
-
-      if (!toUserId) {
-        return;
-      }
-
-      // Emit to receiver
-      emitToUser(io, toUserId, SOCKET_EVENTS.TYPING_STOP, {
-        userId: socket.userId,
+    const { toUserId } = data;
+    if (toUserId) {
+      // Emit to the receiver's room
+      io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.TYPING_STOP, {
+        fromUser: socket.userId,
       });
-    } catch (error) {
-      logger.error('Error handling typing stop:', error);
     }
   });
 };

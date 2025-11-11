@@ -1,93 +1,166 @@
 import { getMessaging } from '../config/firebase.js';
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, NOTIFICATION_TYPES } from '../utils/constants.js';
+import { HTTP_STATUS, NOTIFICATION_TYPES, SOCKET_EVENTS } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
+import { getSocketIoInstance } from '../socket/index.js';
 
 /**
- * Send push notification via FCM
+ * Internal helper to send a single FCM push notification.
  * @param {string} fcmToken - Device FCM token
- * @param {Object} notification - Notification data
- * @returns {Promise<string>}
+ * @param {object} payload - { title, body, data }
+ * @returns {Promise<string|null>}
  */
-export const sendPushNotification = async (fcmToken, notification) => {
+const _sendPushNotification = async (fcmToken, payload) => {
   try {
     const messaging = getMessaging();
-    
     if (!messaging) {
-      logger.warn('Firebase messaging not initialized');
+      logger.warn('Firebase messaging not initialized, push notification skipped.');
       return null;
     }
 
     const message = {
       token: fcmToken,
       notification: {
-        title: notification.title,
-        body: notification.body,
+        title: payload.title,
+        body: payload.body,
       },
-      data: notification.data || {},
+      data: payload.data || {},
     };
 
     const response = await messaging.send(message);
-
     logger.info(`Push notification sent: ${response}`);
     return response;
   } catch (error) {
-    logger.error('Error sending push notification:', error);
-    throw error;
+    // Common errors: 'messaging/registration-token-not-registered' (app uninstall)
+    logger.error(`Error sending push notification to ${fcmToken}: ${error.message}`);
+    if (error.code === 'messaging/registration-token-not-registered') {
+      // The token is invalid. Delete it from the database.
+      await prisma.fcmToken.deleteMany({ where: { token: fcmToken } });
+      logger.info(`Deleted invalid FCM token: ${fcmToken}`);
+    }
+    return null; // Don't throw, as the notification was still created
   }
 };
 
 /**
- * Create notification record
- * @param {string} userId - User ID
- * @param {string} message - Notification message
- * @param {Object} data - Additional data
+ * Create and dispatch a notification (DB, Socket, and Push).
+ * This is the new single source of truth.
+ *
+ * @param {object} dto - Data Transfer Object
+ * @param {number} dto.userId - The ID of the user to notify
+ * @param {NotificationType} dto.type - The enum type of the notification
+ * @param {string} dto.title - The title of the notification
+ * @param {string} dto.message - The body/message of the notification
+ * @param {object} [dto.data] - Optional data to send with the push notification
+ * @param {string} [dto.actionUrl] - Optional URL for in-app navigation
  * @returns {Promise<Object>}
  */
-export const createNotification = async (userId, message, data = {}) => {
+export const createNotification = async (dto) => {
+  const { userId, type, title, message, data = {}, actionUrl } = dto;
+
   try {
-    const notification = await prisma.notification.create({
-      data: {
-        userId,
-        message,
+    // 1. Get user preferences and FCM tokens
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        fcmTokens: {
+          where: { isActive: true },
+        },
+        notificationPreferences: true,
       },
     });
 
-    logger.info(`Notification created for user: ${userId}`);
+    if (!user) {
+      logger.warn(`Cannot create notification: User not found (ID: ${userId})`);
+      return;
+    }
 
-    // Try to send push notification if user has FCM token
-    // Note: FCM token storage would need to be added to user model
-    // This is a placeholder for the logic
-    
+    const prefs = user.notificationPreferences;
+
+    // 2. Create the In-App notification in the DB
+    // (We always do this, regardless of preferences)
+    const notification = await prisma.notification.create({
+      data: {
+        userId,
+        type,
+        title,
+        message,
+        channel: 'IN_APP', // All notifications are at least IN_APP
+        data: JSON.stringify(data),
+        actionUrl,
+        language: user.preferredLanguage || 'HI',
+      },
+    });
+
+    // 3. Send real-time In-App notification via Socket.io
+    const io = getSocketIoInstance();
+    if (io) {
+      io.to(`user:${userId}`).emit(SOCKET_EVENTS.NOTIFICATION_RECEIVED, notification);
+    }
+
+    // 4. Check push notification preferences
+    // This logic assumes you have boolean flags like 'newMessagePush' in your NotificationPreferences model
+    let shouldSendPush = false;
+    if (prefs && prefs.enableAllNotifications) {
+      switch (type) {
+        case NOTIFICATION_TYPES.NEW_MESSAGE:
+          shouldSendPush = prefs.newMessagePush;
+          break;
+        case NOTIFICATION_TYPES.MATCH_REQUEST:
+          shouldSendPush = prefs.matchRequestPush;
+          break;
+        case NOTIFICATION_TYPES.MATCH_ACCEPTED:
+          shouldSendPush = prefs.matchAcceptedPush;
+          break;
+        // ... add other cases
+        default:
+          shouldSendPush = true; // Default to sending
+      }
+    }
+
+    // 5. Send FCM Push Notifications (if enabled)
+    if (shouldSendPush && user.fcmTokens.length > 0) {
+      const pushPayload = { title, body: message, data };
+      
+      // Send to all active devices for this user
+      const pushPromises = user.fcmTokens.map((token) =>
+        _sendPushNotification(token.token, pushPayload)
+      );
+      await Promise.all(pushPromises);
+    }
+
+    logger.info(`Notification created and dispatched for user: ${userId}`);
     return notification;
   } catch (error) {
     logger.error('Error in createNotification:', error);
-    throw error;
+    // Don't throw, as this is often a background task
   }
 };
 
 /**
- * Get user notifications
- * @param {string} userId - User ID
- * @param {Object} query - Query parameters
+ * Get user notifications (paginated)
+ * @param {number} userId - User ID
+ * @param {Object} query - Query parameters (validated)
  * @returns {Promise<Object>}
  */
 export const getUserNotifications = async (userId, query) => {
   try {
     const { page, limit, skip } = getPaginationParams(query);
 
+    const where = { userId };
+    
     const [notifications, total] = await Promise.all([
       prisma.notification.findMany({
-        where: { userId },
+        where,
         skip,
         take: limit,
         orderBy: {
           createdAt: 'desc',
         },
       }),
-      prisma.notification.count({ where: { userId } }),
+      prisma.notification.count({ where }),
     ]);
 
     const pagination = getPaginationMetadata(page, limit, total);
@@ -98,45 +171,46 @@ export const getUserNotifications = async (userId, query) => {
     };
   } catch (error) {
     logger.error('Error in getUserNotifications:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving notifications');
   }
 };
 
 /**
  * Mark notification as read
- * @param {string} notificationId - Notification ID
- * @param {string} userId - User ID
+ * @param {number} notificationId - Notification ID (validated)
+ * @param {number} userId - User ID
  * @returns {Promise<Object>}
  */
 export const markAsRead = async (notificationId, userId) => {
   try {
-    const notification = await prisma.notification.findUnique({
-      where: { id: notificationId },
+    const notification = await prisma.notification.findFirst({
+      where: { id: notificationId, userId: userId }, // Combine find and auth check
     });
 
     if (!notification) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Notification not found');
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Notification not found or you are not authorized');
     }
 
-    if (notification.userId !== userId) {
-      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Not authorized');
+    if (notification.isRead) {
+      return notification; // Already read, just return it
     }
 
     const updatedNotification = await prisma.notification.update({
       where: { id: notificationId },
-      data: { isRead: true },
+      data: { isRead: true, readAt: new Date() },
     });
 
     return updatedNotification;
   } catch (error) {
     logger.error('Error in markAsRead:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error marking as read');
   }
 };
 
 /**
  * Mark all notifications as read
- * @param {string} userId - User ID
+ * @param {number} userId - User ID
  * @returns {Promise<Object>}
  */
 export const markAllAsRead = async (userId) => {
@@ -148,24 +222,26 @@ export const markAllAsRead = async (userId) => {
       },
       data: {
         isRead: true,
+        readAt: new Date(),
       },
     });
 
-    logger.info(`Marked ${result.count} notifications as read`);
+    logger.info(`Marked ${result.count} notifications as read for user ${userId}`);
     return result;
   } catch (error) {
     logger.error('Error in markAllAsRead:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error marking all as read');
   }
 };
 
 /**
  * Get unread notification count
- * @param {string} userId - User ID
+ * @param {number} userId - User ID
  * @returns {Promise<number>}
  */
 export const getUnreadCount = async (userId) => {
   try {
+    // This query is highly efficient due to the [userId, isRead] index
     const count = await prisma.notification.count({
       where: {
         userId,
@@ -176,28 +252,24 @@ export const getUnreadCount = async (userId) => {
     return count;
   } catch (error) {
     logger.error('Error in getUnreadCount:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error getting unread count');
   }
 };
 
 /**
  * Delete notification
- * @param {string} notificationId - Notification ID
- * @param {string} userId - User ID
+ * @param {number} notificationId - Notification ID (validated)
+ * @param {number} userId - User ID
  * @returns {Promise<void>}
  */
 export const deleteNotification = async (notificationId, userId) => {
   try {
-    const notification = await prisma.notification.findUnique({
-      where: { id: notificationId },
+    const notification = await prisma.notification.findFirst({
+      where: { id: notificationId, userId: userId }, // Combine find and auth check
     });
 
     if (!notification) {
-      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Notification not found');
-    }
-
-    if (notification.userId !== userId) {
-      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Not authorized');
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Notification not found or you are not authorized');
     }
 
     await prisma.notification.delete({
@@ -207,13 +279,14 @@ export const deleteNotification = async (notificationId, userId) => {
     logger.info(`Notification deleted: ${notificationId}`);
   } catch (error) {
     logger.error('Error in deleteNotification:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting notification');
   }
 };
 
 /**
  * Delete all notifications
- * @param {string} userId - User ID
+ * @param {number} userId - User ID
  * @returns {Promise<Object>}
  */
 export const deleteAllNotifications = async (userId) => {
@@ -222,17 +295,16 @@ export const deleteAllNotifications = async (userId) => {
       where: { userId },
     });
 
-    logger.info(`Deleted ${result.count} notifications`);
+    logger.info(`Deleted ${result.count} notifications for user ${userId}`);
     return result;
   } catch (error) {
     logger.error('Error in deleteAllNotifications:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting all notifications');
   }
 };
 
 export const notificationService = {
-  sendPushNotification,
-  createNotification,
+  createNotification, // This is the main public function
   getUserNotifications,
   markAsRead,
   markAllAsRead,

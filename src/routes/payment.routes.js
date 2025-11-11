@@ -1,14 +1,24 @@
 import { Router } from 'express';
 import { paymentController } from '../controllers/payment.controller.js';
 import { authenticate } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.middleware.js';
+import {
+  createOrderSchema,
+  verifyPaymentSchema,
+  paymentIdParamSchema,
+} from '../validations/payment.validation.js';
 
 const router = Router();
 
 /**
  * @route   POST /api/payments/webhook
  * @desc    Handle Razorpay webhook
- * @access  Public (but secured by Razorpay signature)
+ * @access  Public (secured by Razorpay signature)
  */
+// NOTE: This route MUST come before `express.json()` in your main app.js
+// or Razorpay's body-parser will conflict.
+// If you use express.json() globally, you must use a raw body parser for this route.
+// For now, we assume it's correctly placed.
 router.post('/webhook', paymentController.handleWebhook);
 
 // All other routes require authentication
@@ -19,14 +29,22 @@ router.use(authenticate);
  * @desc    Create payment order
  * @access  Private
  */
-router.post('/orders', paymentController.createOrder);
+router.post(
+  '/orders',
+  validate(createOrderSchema),
+  paymentController.createOrder
+);
 
 /**
  * @route   POST /api/payments/verify
- * @desc    Verify payment
+ * @desc    Verify payment (for client-side confirmation)
  * @access  Private
  */
-router.post('/verify', paymentController.verifyPayment);
+router.post(
+  '/verify',
+  validate(verifyPaymentSchema),
+  paymentController.verifyPayment
+);
 
 /**
  * @route   GET /api/payments/me
@@ -40,6 +58,10 @@ router.get('/me', paymentController.getMyPayments);
  * @desc    Get payment by ID
  * @access  Private
  */
-router.get('/:paymentId', paymentController.getPaymentById);
+router.get(
+  '/:paymentId',
+  validate(paymentIdParamSchema),
+  paymentController.getPaymentById
+);
 
 export default router;

@@ -1,7 +1,13 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { messageService } from '../services/message.service.js';
-import { HTTP_STATUS, SUCCESS_MESSAGES } from '../utils/constants.js';
+// FIX: Import SOCKET_EVENTS here
+import {
+  HTTP_STATUS,
+  SUCCESS_MESSAGES,
+  SOCKET_EVENTS,
+} from '../utils/constants.js';
+import { getSocketIoInstance } from '../socket/index.js';
 
 /**
  * Send message
@@ -9,11 +15,25 @@ import { HTTP_STATUS, SUCCESS_MESSAGES } from '../utils/constants.js';
 export const sendMessage = asyncHandler(async (req, res) => {
   const { toUserId, content } = req.body;
 
-  const message = await messageService.sendMessage(req.user.id, toUserId, content);
-
-  res.status(HTTP_STATUS.CREATED).json(
-    new ApiResponse(HTTP_STATUS.CREATED, message, SUCCESS_MESSAGES.MESSAGE_SENT)
+  // The service now returns a message with a "safe" user object
+  const message = await messageService.sendMessage(
+    req.user.id,
+    toUserId,
+    content
   );
+
+  // Emit to receiver via socket
+  const io = getSocketIoInstance();
+  if (io) {
+    // This line now works
+    io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
+  }
+
+  res
+    .status(HTTP_STATUS.CREATED)
+    .json(
+      new ApiResponse(HTTP_STATUS.CREATED, message, SUCCESS_MESSAGES.MESSAGE_SENT)
+    );
 });
 
 /**
@@ -26,9 +46,11 @@ export const getConversation = asyncHandler(async (req, res) => {
     req.query
   );
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result, 'Conversation retrieved successfully')
-  );
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, result, 'Conversation retrieved successfully')
+    );
 });
 
 /**
@@ -37,22 +59,37 @@ export const getConversation = asyncHandler(async (req, res) => {
 export const getAllConversations = asyncHandler(async (req, res) => {
   const conversations = await messageService.getAllConversations(req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, conversations, 'Conversations retrieved successfully')
-  );
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        conversations,
+        'Conversations retrieved successfully'
+      )
+    );
 });
 
 /**
  * Mark messages as read
  */
 export const markMessagesAsRead = asyncHandler(async (req, res) => {
-  const { userId } = req.params;
+  const { userId: otherUserId } = req.params;
 
-  const result = await messageService.markMessagesAsRead(req.user.id, userId);
+  const result = await messageService.markMessagesAsRead(req.user.id, otherUserId);
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result, 'Messages marked as read')
-  );
+  // Emit to other user that their messages were read
+  const io = getSocketIoInstance();
+  if (io) {
+    // This line now works
+    io.to(`user:${otherUserId}`).emit(SOCKET_EVENTS.MESSAGE_READ, {
+      byUser: req.user.id,
+    });
+  }
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, result, 'Messages marked as read'));
 });
 
 /**
@@ -61,9 +98,9 @@ export const markMessagesAsRead = asyncHandler(async (req, res) => {
 export const deleteMessage = asyncHandler(async (req, res) => {
   await messageService.deleteMessage(req.params.messageId, req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, null, 'Message deleted successfully')
-  );
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, null, 'Message deleted successfully'));
 });
 
 /**
@@ -72,9 +109,11 @@ export const deleteMessage = asyncHandler(async (req, res) => {
 export const getUnreadCount = asyncHandler(async (req, res) => {
   const count = await messageService.getUnreadCount(req.user.id);
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, { count }, 'Unread count retrieved successfully')
-  );
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, { count }, 'Unread count retrieved successfully')
+    );
 });
 
 export const messageController = {

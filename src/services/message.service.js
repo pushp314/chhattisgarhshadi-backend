@@ -1,25 +1,43 @@
 import prisma from '../config/database.js';
+import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 
+// Define a reusable Prisma select for public-facing user data
+// This prevents leaking sensitive fields like email, phone, googleId, etc.
+const userPublicSelect = {
+  id: true,
+  profilePicture: true,
+  role: true,
+  profile: {
+    select: {
+      firstName: true,
+      lastName: true,
+    },
+  },
+};
+
 /**
  * Send message
- * @param {string} fromUserId - Sender user ID
- * @param {string} toUserId - Receiver user ID
+ * @param {number} senderId - Sender user ID
+ * @param {number} receiverId - Receiver user ID
  * @param {string} content - Message content
  * @returns {Promise<Object>}
  */
-export const sendMessage = async (fromUserId, toUserId, content) => {
+export const sendMessage = async (senderId, receiverId, content) => {
   try {
-    if (fromUserId === toUserId) {
-      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Cannot send message to yourself');
+    if (senderId === receiverId) {
+      throw new ApiError(
+        HTTP_STATUS.BAD_REQUEST,
+        'Cannot send message to yourself'
+      );
     }
 
     // Check if receiver exists
     const receiver = await prisma.user.findUnique({
-      where: { id: toUserId },
+      where: { id: receiverId },
     });
 
     if (!receiver) {
@@ -28,40 +46,33 @@ export const sendMessage = async (fromUserId, toUserId, content) => {
 
     const message = await prisma.message.create({
       data: {
-        fromUserId,
-        toUserId,
+        senderId,
+        receiverId,
         content,
       },
       include: {
-        fromUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+        sender: {
+          select: userPublicSelect,
         },
-        toUser: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+        receiver: {
+          select: userPublicSelect,
         },
       },
     });
 
-    logger.info(`Message sent from ${fromUserId} to ${toUserId}`);
+    logger.info(`Message sent from ${senderId} to ${receiverId}`);
     return message;
   } catch (error) {
     logger.error('Error in sendMessage:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error sending message');
   }
 };
 
 /**
  * Get conversation between two users
- * @param {string} userId - Current user ID
- * @param {string} otherUserId - Other user ID
+ * @param {number} userId - Current user ID
+ * @param {number} otherUserId - Other user ID
  * @param {Object} query - Query parameters
  * @returns {Promise<Object>}
  */
@@ -71,8 +82,8 @@ export const getConversation = async (userId, otherUserId, query) => {
 
     const where = {
       OR: [
-        { fromUserId: userId, toUserId: otherUserId },
-        { fromUserId: otherUserId, toUserId: userId },
+        { senderId: userId, receiverId: otherUserId },
+        { senderId: otherUserId, receiverId: userId },
       ],
     };
 
@@ -82,17 +93,8 @@ export const getConversation = async (userId, otherUserId, query) => {
         skip,
         take: limit,
         include: {
-          fromUser: {
-            select: {
-              id: true,
-              name: true,
-            },
-          },
-          toUser: {
-            select: {
-              id: true,
-              name: true,
-            },
+          sender: {
+            select: userPublicSelect,
           },
         },
         orderBy: {
@@ -110,119 +112,136 @@ export const getConversation = async (userId, otherUserId, query) => {
     };
   } catch (error) {
     logger.error('Error in getConversation:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving conversation');
   }
 };
 
 /**
  * Get all conversations for a user
- * @param {string} userId - User ID
+ * @param {number} userId - User ID
  * @returns {Promise<Array>}
  */
 export const getAllConversations = async (userId) => {
   try {
-    // Get unique users the current user has conversations with
-    const conversations = await prisma.$queryRaw`
-      SELECT DISTINCT
-        CASE
-          WHEN "fromUserId" = ${userId} THEN "toUserId"
-          ELSE "fromUserId"
-        END as "otherUserId",
-        MAX("createdAt") as "lastMessageAt"
-      FROM "Message"
-      WHERE "fromUserId" = ${userId} OR "toUserId" = ${userId}
+    // Step 1: Get all distinct conversation partners and the timestamp of the last message
+    const conversationPartners = await prisma.$queryRaw`
+      SELECT "otherUserId", MAX("createdAt") as "lastMessageAt"
+      FROM (
+        SELECT "receiverId" as "otherUserId", "createdAt" FROM "messages" WHERE "senderId" = ${userId}
+        UNION ALL
+        SELECT "senderId" as "otherUserId", "createdAt" FROM "messages" WHERE "receiverId" = ${userId}
+      ) as "allConversations"
       GROUP BY "otherUserId"
       ORDER BY "lastMessageAt" DESC
     `;
 
-    // Get user details for each conversation
-    const conversationsWithDetails = await Promise.all(
-      conversations.map(async (conv) => {
-        const otherUser = await prisma.user.findUnique({
-          where: { id: conv.otherUserId },
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            profile: {
-              select: {
-                firstName: true,
-                lastName: true,
-                photos: true,
-              },
-            },
-          },
-        });
+    if (conversationPartners.length === 0) {
+      return [];
+    }
 
-        // Get last message
-        const lastMessage = await prisma.message.findFirst({
-          where: {
-            OR: [
-              { fromUserId: userId, toUserId: conv.otherUserId },
-              { fromUserId: conv.otherUserId, toUserId: userId },
-            ],
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        });
+    const otherUserIds = conversationPartners.map((c) => c.otherUserId);
 
-        // Get unread count
-        const unreadCount = await prisma.message.count({
-          where: {
-            fromUserId: conv.otherUserId,
-            toUserId: userId,
-            isRead: false,
-          },
-        });
+    // Step 2: Get all user details for these partners in one query
+    const users = await prisma.user.findMany({
+      where: { id: { in: otherUserIds } },
+      select: userPublicSelect,
+    });
+    const userMap = new Map(users.map((user) => [user.id, user]));
 
-        return {
-          user: otherUser,
-          lastMessage,
-          unreadCount,
-          lastMessageAt: conv.lastMessageAt,
-        };
-      })
+    // Step 3: Get all last messages for these conversations in one query
+    const lastMessages = await prisma.$queryRaw`
+      SELECT m.*
+      FROM "messages" m
+      INNER JOIN (
+        SELECT
+          LEAST("senderId", "receiverId") as u1,
+          GREATEST("senderId", "receiverId") as u2,
+          MAX("createdAt") as "maxCreatedAt"
+        FROM "messages"
+        WHERE ("senderId" = ${userId} AND "receiverId" IN (${Prisma.join(otherUserIds)}))
+           OR ("receiverId" = ${userId} AND "senderId" IN (${Prisma.join(otherUserIds)}))
+        GROUP BY u1, u2
+      ) lm ON LEAST(m."senderId", m."receiverId") = lm.u1
+           AND GREATEST(m."senderId", m."receiverId") = lm.u2
+           AND m."createdAt" = lm."maxCreatedAt"
+    `;
+    const lastMessageMap = new Map(
+      lastMessages.map((m) => [
+        m.senderId === userId ? m.receiverId : m.senderId,
+        m,
+      ])
     );
+
+    // Step 4: Get all unread counts in one query
+    const unreadCounts = await prisma.message.groupBy({
+      by: ['senderId'],
+      where: {
+        receiverId: userId,
+        senderId: { in: otherUserIds },
+        isRead: false,
+      },
+      _count: {
+        id: true,
+      },
+    });
+    const unreadCountMap = new Map(
+      unreadCounts.map((c) => [c.senderId, c._count.id])
+    );
+
+    // Step 5: Combine all the data
+    const conversationsWithDetails = conversationPartners.map((conv) => {
+      const otherUser = userMap.get(conv.otherUserId);
+      const lastMessage = lastMessageMap.get(conv.otherUserId);
+      const unreadCount = unreadCountMap.get(conv.otherUserId) || 0;
+
+      return {
+        user: otherUser,
+        lastMessage,
+        unreadCount,
+        lastMessageAt: conv.lastMessageAt,
+      };
+    });
 
     return conversationsWithDetails;
   } catch (error) {
     logger.error('Error in getAllConversations:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving conversations');
   }
 };
 
+
 /**
  * Mark messages as read
- * @param {string} userId - Current user ID
- * @param {string} otherUserId - Other user ID
+ * @param {number} userId - Current user ID
+ * @param {number} otherUserId - Other user ID
  * @returns {Promise<Object>}
  */
 export const markMessagesAsRead = async (userId, otherUserId) => {
   try {
     const result = await prisma.message.updateMany({
       where: {
-        fromUserId: otherUserId,
-        toUserId: userId,
+        senderId: otherUserId,
+        receiverId: userId,
         isRead: false,
       },
       data: {
         isRead: true,
+        readAt: new Date(),
       },
     });
 
-    logger.info(`Marked ${result.count} messages as read`);
+    logger.info(`Marked ${result.count} messages as read from ${otherUserId} for ${userId}`);
     return result;
   } catch (error) {
     logger.error('Error in markMessagesAsRead:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error marking messages as read');
   }
 };
 
 /**
  * Delete message
- * @param {string} messageId - Message ID
- * @param {string} userId - User ID
+ * @param {number} messageId - Message ID
+ * @param {number} userId - User ID
  * @returns {Promise<void>}
  */
 export const deleteMessage = async (messageId, userId) => {
@@ -236,31 +255,43 @@ export const deleteMessage = async (messageId, userId) => {
     }
 
     // Only sender can delete message
-    if (message.fromUserId !== userId) {
-      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You can only delete your own messages');
+    if (message.senderId !== userId) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        'You can only delete your own messages'
+      );
     }
 
-    await prisma.message.delete({
+    // We will just mark as deleted for now, so the receiver can still see it.
+    // To truly delete, use prisma.message.delete()
+    await prisma.message.update({
       where: { id: messageId },
+      data: {
+        content: 'This message was deleted',
+        isDeleted: true,
+        deletedAt: new Date(),
+        deletedBy: userId,
+      }
     });
 
-    logger.info(`Message deleted: ${messageId}`);
+    logger.info(`Message marked as deleted: ${messageId}`);
   } catch (error) {
     logger.error('Error in deleteMessage:', error);
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting message');
   }
 };
 
 /**
  * Get unread message count
- * @param {string} userId - User ID
+ * @param {number} userId - User ID
  * @returns {Promise<number>}
  */
 export const getUnreadCount = async (userId) => {
   try {
     const count = await prisma.message.count({
       where: {
-        toUserId: userId,
+        receiverId: userId,
         isRead: false,
       },
     });
@@ -268,7 +299,7 @@ export const getUnreadCount = async (userId) => {
     return count;
   } catch (error) {
     logger.error('Error in getUnreadCount:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error getting unread count');
   }
 };
 

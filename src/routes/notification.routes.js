@@ -1,6 +1,11 @@
 import { Router } from 'express';
 import { notificationController } from '../controllers/notification.controller.js';
 import { authenticate } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.middleware.js';
+import {
+  notificationIdParamSchema,
+  getNotificationsQuerySchema,
+} from '../validations/notification.validation.js';
 
 const router = Router();
 
@@ -9,10 +14,14 @@ router.use(authenticate);
 
 /**
  * @route   GET /api/notifications
- * @desc    Get my notifications
+ * @desc    Get my notifications (paginated)
  * @access  Private
  */
-router.get('/', notificationController.getMyNotifications);
+router.get(
+  '/',
+  validate(getNotificationsQuerySchema),
+  notificationController.getMyNotifications
+);
 
 /**
  * @route   GET /api/notifications/unread-count
@@ -37,16 +46,24 @@ router.delete('/', notificationController.deleteAllNotifications);
 
 /**
  * @route   PUT /api/notifications/:notificationId/read
- * @desc    Mark notification as read
+ * @desc    Mark a single notification as read
  * @access  Private
  */
-router.put('/:notificationId/read', notificationController.markAsRead);
+router.put(
+  '/:notificationId/read',
+  validate(notificationIdParamSchema),
+  notificationController.markAsRead
+);
 
 /**
  * @route   DELETE /api/notifications/:notificationId
- * @desc    Delete notification
+ * @desc    Delete a single notification
  * @access  Private
  */
-router.delete('/:notificationId', notificationController.deleteNotification);
+router.delete(
+  '/:notificationId',
+  validate(notificationIdParamSchema),
+  notificationController.deleteNotification
+);
 
 export default router;

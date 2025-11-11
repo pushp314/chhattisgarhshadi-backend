@@ -1,10 +1,17 @@
 import { Router } from 'express';
 import { messageController } from '../controllers/message.controller.js';
 import { authenticate, requireCompleteProfile } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.middleware.js';
+import {
+  sendMessageSchema,
+  conversationParamsSchema,
+  conversationQuerySchema,
+  messageIdParamSchema,
+} from '../validations/message.validation.js';
 
 const router = Router();
 
-// All routes require authentication and complete profile
+// All routes require authentication and a complete profile
 router.use(authenticate, requireCompleteProfile);
 
 /**
@@ -12,7 +19,7 @@ router.use(authenticate, requireCompleteProfile);
  * @desc    Send message
  * @access  Private
  */
-router.post('/', messageController.sendMessage);
+router.post('/', validate(sendMessageSchema), messageController.sendMessage);
 
 /**
  * @route   GET /api/messages/conversations
@@ -33,20 +40,32 @@ router.get('/unread-count', messageController.getUnreadCount);
  * @desc    Get conversation with a user
  * @access  Private
  */
-router.get('/:userId', messageController.getConversation);
+router.get(
+  '/:userId',
+  validate(conversationParamsSchema.merge(conversationQuerySchema)),
+  messageController.getConversation
+);
 
 /**
  * @route   PUT /api/messages/:userId/read
  * @desc    Mark messages as read
  * @access  Private
  */
-router.put('/:userId/read', messageController.markMessagesAsRead);
+router.put(
+  '/:userId/read',
+  validate(conversationParamsSchema),
+  messageController.markMessagesAsRead
+);
 
 /**
  * @route   DELETE /api/messages/:messageId
  * @desc    Delete message
  * @access  Private
  */
-router.delete('/:messageId', messageController.deleteMessage);
+router.delete(
+  '/:messageId',
+  validate(messageIdParamSchema),
+  messageController.deleteMessage
+);
 
 export default router;

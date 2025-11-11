@@ -1,6 +1,14 @@
 import { Router } from 'express';
 import { profileController } from '../controllers/profile.controller.js';
 import { authenticate, requireCompleteProfile } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.middleware.js';
+import {
+  createProfileSchema,
+  updateProfileSchema,
+  searchProfilesSchema,
+  objectIdSchema,
+  mediaIdSchema
+} from '../validations/profile.validation.js';
 
 const router = Router();
 
@@ -12,7 +20,7 @@ router.use(authenticate);
  * @desc    Create profile
  * @access  Private
  */
-router.post('/', profileController.createProfile);
+router.post('/', validate(createProfileSchema), profileController.createProfile);
 
 /**
  * @route   GET /api/profiles/me
@@ -26,7 +34,7 @@ router.get('/me', profileController.getMyProfile);
  * @desc    Update my profile
  * @access  Private
  */
-router.put('/me', profileController.updateMyProfile);
+router.put('/me', validate(updateProfileSchema), profileController.updateMyProfile);
 
 /**
  * @route   DELETE /api/profiles/me
@@ -40,27 +48,34 @@ router.delete('/me', profileController.deleteMyProfile);
  * @desc    Search profiles
  * @access  Private (requires complete profile)
  */
-router.get('/search', requireCompleteProfile, profileController.searchProfiles);
+router.get(
+  '/search',
+  requireCompleteProfile,
+  validate(searchProfilesSchema),
+  profileController.searchProfiles
+);
 
 /**
- * @route   POST /api/profiles/photos
- * @desc    Add photo to profile
+ * @route   DELETE /api/profiles/photos/:mediaId
+ * @desc    Remove a photo from my profile
  * @access  Private
  */
-router.post('/photos', profileController.addPhoto);
-
-/**
- * @route   DELETE /api/profiles/photos
- * @desc    Remove photo from profile
- * @access  Private
- */
-router.delete('/photos', profileController.removePhoto);
+router.delete(
+  '/photos/:mediaId',
+  validate(mediaIdSchema),
+  profileController.deletePhoto
+);
 
 /**
  * @route   GET /api/profiles/:userId
  * @desc    Get profile by user ID
  * @access  Private (requires complete profile)
  */
-router.get('/:userId', requireCompleteProfile, profileController.getProfileByUserId);
+router.get(
+  '/:userId',
+  requireCompleteProfile,
+  validate(objectIdSchema),
+  profileController.getProfileByUserId
+);
 
 export default router;
