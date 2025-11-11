@@ -56,9 +56,9 @@ const jwtUtils = new JWTUtils();
 
 // Export both as default and named exports
 export default jwtUtils;
-export const { 
-  generateAccessToken, 
-  generateRefreshToken, 
-  verifyAccessToken, 
-  verifyRefreshToken 
+export const {
+  generateAccessToken,
+  generateRefreshToken,
+  verifyAccessToken,
+  verifyRefreshToken,
 } = jwtUtils;
