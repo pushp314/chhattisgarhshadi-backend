@@ -6,8 +6,7 @@ import {
   createOrderSchema,
   verifyPaymentSchema,
   paymentIdParamSchema,
-} from '../validations/payment.validation.js';
-
+} from '../validation/payment.validation.js';
 const router = Router();
 
 /**

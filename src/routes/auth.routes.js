@@ -9,7 +9,7 @@ import {
   logoutSchema,
   sendPhoneOTPSchema,
   verifyPhoneOTPSchema,
-} from '../validations/auth.validation.js';
+} from '../validation/auth.validation.js';
 
 const router = Router();
 

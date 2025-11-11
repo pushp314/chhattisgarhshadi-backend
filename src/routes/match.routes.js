@@ -6,7 +6,7 @@ import {
   sendMatchRequestSchema,
   matchIdParamSchema,
   getMatchesQuerySchema,
-} from '../validations/match.validation.js';
+} from '../validation/match.validation.js';
 
 const router = Router();
 

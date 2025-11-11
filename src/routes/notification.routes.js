@@ -5,7 +5,7 @@ import { validate } from '../middleware/validate.middleware.js';
 import {
   notificationIdParamSchema,
   getNotificationsQuerySchema,
-} from '../validations/notification.validation.js';
+} from '../validation/notification.validation.js';
 
 const router = Router();
 

@@ -6,7 +6,7 @@ import {
   objectIdSchema,
   updateMeSchema,
   searchUsersSchema,
-} from '../validations/user.validation.js';
+} from '../validation/user.validation.js';
 
 const router = Router();
 

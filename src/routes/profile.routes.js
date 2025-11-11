@@ -8,7 +8,7 @@ import {
   searchProfilesSchema,
   objectIdSchema,
   mediaIdSchema
-} from '../validations/profile.validation.js';
+} from '../validation/profile.validation.js';
 
 const router = Router();
 

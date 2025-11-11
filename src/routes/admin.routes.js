@@ -7,7 +7,7 @@ import {
   recentQuerySchema,
   userIdParamSchema,
   updateUserRoleSchema,
-} from '../validations/admin.validation.js';
+} from '../validation/admin.validation.js';
 
 const router = Router();
 

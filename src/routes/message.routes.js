@@ -7,7 +7,7 @@ import {
   conversationParamsSchema,
   conversationQuerySchema,
   messageIdParamSchema,
-} from '../validations/message.validation.js';
+} from '../validation/message.validation.js';
 
 const router = Router();
 
