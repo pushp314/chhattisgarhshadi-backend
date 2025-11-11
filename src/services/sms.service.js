@@ -4,7 +4,7 @@ import {logger} from '../config/logger.js';
 class SMSService {
   constructor() {
     this.authKey = process.env.MSG91_AUTH_KEY;
-    this.senderId = process.env.MSG91_SENDER_ID || 'CGSHAD';
+    this.senderId = process.env.MSG9J_SENDER_ID || 'CGSHAD';
     this.templateId = process.env.MSG91_TEMPLATE_ID;
     this.baseUrl = 'https://control.msg91.com/api/v5';
   }
@@ -20,8 +20,6 @@ class SMSService {
         }
         throw new Error('SMS service not configured');
       }
-
-      const message = `Your Chhattisgarh Shadi OTP is: ${otp}. Valid for 5 minutes. Do not share with anyone.`;
 
       const response = await axios.post(
         `${this.baseUrl}/flow/`,
@@ -39,6 +37,11 @@ class SMSService {
           },
         }
       );
+
+      if (!response.data || response.data.type !== 'success') {
+         logger.error('SMS sending failed:', response.data.message || 'Unknown MSG91 error');
+         throw new Error('Failed to send OTP');
+      }
 
       logger.info(`✅ OTP sent to ${countryCode}${phone}`);
       return { success: true, messageId: response.data.request_id };

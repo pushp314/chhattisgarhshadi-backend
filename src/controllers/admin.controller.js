@@ -2,11 +2,10 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { userService } from '../services/user.service.js';
 import { profileService } from '../services/profile.service.js';
-import authService from '../services/auth.service.js';  // ← Changed: removed { }
+import authService from '../services/auth.service.js';  
 import prisma from '../config/database.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
-// ... rest of file stays the same ...
 
 /**
  * Get all users (Admin)

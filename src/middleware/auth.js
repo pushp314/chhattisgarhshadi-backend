@@ -1,6 +1,8 @@
 import jwtUtils from '../utils/jwt.js';
 import prisma from '../config/database.js';
 import { logger } from '../config/logger.js';
+import { ApiError } from '../utils/ApiError.js';
+import { HTTP_STATUS } from '../utils/constants.js';
 
 /**
  * Authenticate user with JWT token
@@ -10,10 +12,7 @@ export const authenticate = async (req, res, next) => {
     const authHeader = req.headers.authorization;
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authorization token required',
-      });
+      return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authorization token required'));
     }
 
     const token = authHeader.substring(7);
@@ -30,17 +29,11 @@ export const authenticate = async (req, res, next) => {
     });
 
     if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'User not found',
-      });
+      return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'User not found'));
     }
 
     if (!user.isActive || user.isBanned) {
-      return res.status(403).json({
-        success: false,
-        message: 'Account is not active',
-      });
+      return next(new ApiError(HTTP_STATUS.FORBIDDEN, 'Account is not active'));
     }
 
     // Attach user to request
@@ -49,10 +42,7 @@ export const authenticate = async (req, res, next) => {
 
   } catch (error) {
     logger.error('Authentication error:', error.message);
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid or expired token',
-    });
+    return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Invalid or expired token'));
   }
 };
 
@@ -93,42 +83,31 @@ export const requireCompleteProfile = async (req, res, next) => {
   try {
     // User must be authenticated first
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
+      return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication required'));
     }
 
     // Check if profile exists
     if (!req.user.profile) {
-      return res.status(403).json({
-        success: false,
-        message: 'Profile not found. Please create your profile first.',
-      });
+      return next(new ApiError(HTTP_STATUS.FORBIDDEN, 'Profile not found. Please create your profile first.'));
     }
 
     // Check profile completeness (you can adjust the threshold)
     const profileCompleteness = req.user.profile.profileCompleteness || 0;
     
     if (profileCompleteness < 50) {
-      return res.status(403).json({
-        success: false,
-        message: 'Please complete your profile to access this feature',
-        data: {
-          profileCompleteness,
-          requiredCompleteness: 50,
-        },
-      });
+      const error = new ApiError(HTTP_STATUS.FORBIDDEN, 'Please complete your profile to access this feature');
+      error.data = {
+        profileCompleteness,
+        requiredCompleteness: 50,
+      };
+      return next(error);
     }
 
     next();
 
   } catch (error) {
     logger.error('Profile check error:', error.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Error checking profile status',
-    });
+    return next(new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error checking profile status'));
   }
 };
 
@@ -138,27 +117,18 @@ export const requireCompleteProfile = async (req, res, next) => {
 export const requirePhoneVerified = async (req, res, next) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
+      return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication required'));
     }
 
     if (!req.user.isPhoneVerified) {
-      return res.status(403).json({
-        success: false,
-        message: 'Phone verification required to access this feature',
-      });
+      return next(new ApiError(HTTP_STATUS.FORBIDDEN, 'Phone verification required to access this feature'));
     }
 
     next();
 
   } catch (error) {
     logger.error('Phone verification check error:', error.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Error checking phone verification status',
-    });
+    return next(new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error checking phone verification status'));
   }
 };
 
@@ -168,10 +138,7 @@ export const requirePhoneVerified = async (req, res, next) => {
 export const requireSubscription = async (req, res, next) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
+      return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication required'));
     }
 
     // Check for active subscription
@@ -189,11 +156,11 @@ export const requireSubscription = async (req, res, next) => {
     });
 
     if (!activeSubscription) {
-      return res.status(403).json({
-        success: false,
-        message: 'Active subscription required to access this feature',
+      const error = new ApiError(HTTP_STATUS.FORBIDDEN, 'Active subscription required to access this feature');
+      error.data = {
         requiresSubscription: true,
-      });
+      };
+      return next(error);
     }
 
     // Attach subscription to request
@@ -202,10 +169,7 @@ export const requireSubscription = async (req, res, next) => {
 
   } catch (error) {
     logger.error('Subscription check error:', error.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Error checking subscription status',
-    });
+    return next(new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error checking subscription status'));
   }
 };
 
@@ -215,26 +179,17 @@ export const requireSubscription = async (req, res, next) => {
 export const requireAdmin = async (req, res, next) => {
   try {
     if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required',
-      });
+      return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication required'));
     }
 
     if (req.user.role !== 'ADMIN' && req.user.role !== 'SUPER_ADMIN') {
-      return res.status(403).json({
-        success: false,
-        message: 'Admin access required',
-      });
+      return next(new ApiError(HTTP_STATUS.FORBIDDEN, 'Admin access required'));
     }
 
     next();
 
   } catch (error) {
     logger.error('Admin check error:', error.message);
-    return res.status(500).json({
-      success: false,
-      message: 'Error checking admin status',
-    });
+    return next(new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error checking admin status'));
   }
 };

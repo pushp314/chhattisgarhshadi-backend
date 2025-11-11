@@ -1,45 +1,60 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, ERROR_MESSAGES } from '../utils/constants.js';
+import { HTTP_STATUS, ERROR_MESSAGES, USER_ROLES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 
+// Define a reusable Prisma select for public-facing user data
+// This prevents leaking sensitive fields like email, phone, googleId, etc.
+const userPublicSelect = {
+  id: true,
+  profilePicture: true,
+  role: true,
+  preferredLanguage: true,
+  createdAt: true,
+  profile: true, // Include the full related profile
+};
+
 /**
- * Get user by ID
+ * Get a user's full details (for the user themselves)
  * @param {string} userId - User ID
- * @param {boolean} includeProfile - Include profile data
  * @returns {Promise<Object>}
  */
-export const getUserById = async (userId, includeProfile = true) => {
+export const getFullUserById = async (userId) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isActive: true },
       include: {
-        profile: includeProfile,
+        profile: true,
       },
     });
 
     if (!user) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     }
-
+    
+    // It's safe to return the full user object here because
+    // it's only called by getMyProfile (for the user themselves)
     return user;
   } catch (error) {
-    logger.error('Error in getUserById:', error);
+    logger.error('Error in getFullUserById:', error);
+    if (!(error instanceof ApiError)) {
+      throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving user data');
+    }
     throw error;
   }
 };
 
 /**
- * Get user by email
- * @param {string} email - User email
+ * Get another user's public-safe details
+ * @param {string} userId - User ID
  * @returns {Promise<Object>}
  */
-export const getUserByEmail = async (email) => {
+export const getPublicUserById = async (userId) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { email },
-      include: { profile: true },
+      where: { id: userId, isActive: true },
+      select: userPublicSelect, // Use the public-safe select
     });
 
     if (!user) {
@@ -48,74 +63,134 @@ export const getUserByEmail = async (email) => {
 
     return user;
   } catch (error) {
-    logger.error('Error in getUserByEmail:', error);
+    logger.error('Error in getPublicUserById:', error);
+    if (!(error instanceof ApiError)) {
+      throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving user data');
+    }
     throw error;
   }
 };
 
 /**
- * Update user
+ * Update a user's safe, editable fields
  * @param {string} userId - User ID
- * @param {Object} data - Update data
+ * @param {Object} data - Update data (pre-validated)
  * @returns {Promise<Object>}
  */
 export const updateUser = async (userId, data) => {
   try {
+    // We only pass validated data, so fields like 'role' cannot be injected
     const user = await prisma.user.update({
       where: { id: userId },
-      data,
+      data: data, // data is already validated by Zod schema in the route
       include: { profile: true },
     });
 
     logger.info(`User updated: ${userId}`);
-    return user;
+    return user; // Return full user object to the user who made the change
   } catch (error) {
     logger.error('Error in updateUser:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating user');
   }
 };
 
 /**
- * Delete user (soft delete)
+ * Soft delete a user's account
  * @param {string} userId - User ID
  * @returns {Promise<Object>}
  */
 export const deleteUser = async (userId) => {
   try {
-    // Delete user and all related data
+    // This performs a SOFT DELETE by setting isActive to false
+    // and setting deletedAt. This is reversible and safer.
+    // It also anonymizes PII.
     await prisma.$transaction([
-      // Delete refresh tokens
+      // 1. Mark user as inactive and set deletedAt
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          isActive: false,
+          isBanned: true, // Prevents login
+          banReason: 'Account deleted by user.',
+          deletedAt: new Date(),
+          email: `deleted_${userId}@chhattisgarhshadi.com`, // Anonymize email
+          googleId: `deleted_${userId}`, // Anonymize googleId
+          phone: null,
+          profilePicture: null,
+          deviceInfo: null,
+          lastLoginIp: null,
+        },
+      }),
+      // 2. Revoke all refresh tokens
       prisma.refreshToken.deleteMany({ where: { userId } }),
-      // Delete notifications
-      prisma.notification.deleteMany({ where: { userId } }),
-      // Delete messages
-      prisma.message.deleteMany({
-        where: {
-          OR: [{ fromUserId: userId }, { toUserId: userId }],
-        },
-      }),
-      // Delete matches
-      prisma.match.deleteMany({
-        where: {
-          OR: [{ fromUserId: userId }, { toUserId: userId }],
-        },
-      }),
-      // Delete profile
-      prisma.profile.deleteMany({ where: { userId } }),
-      // Delete user
-      prisma.user.delete({ where: { id: userId } }),
+      // 3. (Optional) You may want to also delete their profile or keep it
+      //    Leaving it for now, as isActive=false will hide it.
+      // prisma.profile.deleteMany({ where: { userId } }),
     ]);
 
-    logger.info(`User deleted: ${userId}`);
+    logger.info(`User soft-deleted: ${userId}`);
     return { success: true };
   } catch (error) {
     logger.error('Error in deleteUser:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting account');
   }
 };
 
 /**
- * Get all users with pagination
+ * Search users (public, paginated)
+ * @param {Object} query - Query parameters (pre-validated)
+ * @returns {Promise<Object>}
+ */
+export const searchUsers = async (query) => {
+  try {
+    const { page, limit, skip } = getPaginationParams(query);
+    const { search, role } = query;
+
+    const where = {
+      isActive: true, // Only show active users
+    };
+
+    if (role) {
+      where.role = role;
+    }
+
+    if (search) {
+      where.OR = [
+        // Search on profile fields, not sensitive User fields
+        { profile: { firstName: { contains: search, mode: 'insensitive' } } },
+        { profile: { lastName: { contains: search, mode: 'insensitive' } } },
+        { profile: { profileId: { equals: search } } },
+      ];
+    }
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        select: userPublicSelect, // Use public-safe select
+        orderBy: {
+          createdAt: 'desc',
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const pagination = getPaginationMetadata(page, limit, total);
+
+    return {
+      users,
+      pagination,
+    };
+  } catch (error) {
+    logger.error('Error in searchUsers:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error searching users');
+  }
+};
+
+// Admin-specific functions (moved from the original service)
+/**
+ * Get all users with pagination (Admin Only)
  * @param {Object} query - Query parameters
  * @returns {Promise<Object>}
  */
@@ -140,73 +215,28 @@ export const getAllUsers = async (query) => {
     const pagination = getPaginationMetadata(page, limit, total);
 
     return {
-      users,
+      users, // Admin gets full object, this is acceptable
       pagination,
     };
   } catch (error) {
     logger.error('Error in getAllUsers:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving users');
   }
 };
 
 /**
- * Search users
- * @param {Object} filters - Search filters
- * @param {Object} query - Query parameters
- * @returns {Promise<Object>}
- */
-export const searchUsers = async (filters, query) => {
-  try {
-    const { page, limit, skip } = getPaginationParams(query);
-
-    const where = {};
-
-    if (filters.role) {
-      where.role = filters.role;
-    }
-
-    if (filters.search) {
-      where.OR = [
-        { name: { contains: filters.search, mode: 'insensitive' } },
-        { email: { contains: filters.search, mode: 'insensitive' } },
-      ];
-    }
-
-    const [users, total] = await Promise.all([
-      prisma.user.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          profile: true,
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      }),
-      prisma.user.count({ where }),
-    ]);
-
-    const pagination = getPaginationMetadata(page, limit, total);
-
-    return {
-      users,
-      pagination,
-    };
-  } catch (error) {
-    logger.error('Error in searchUsers:', error);
-    throw error;
-  }
-};
-
-/**
- * Update user role
+ * Update user role (Admin Only)
  * @param {string} userId - User ID
  * @param {string} role - New role
  * @returns {Promise<Object>}
  */
 export const updateUserRole = async (userId, role) => {
   try {
+    // Add validation to ensure 'role' is a valid UserRole
+    if (!Object.values(USER_ROLES).includes(role)) {
+       throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid user role');
+    }
+    
     const user = await prisma.user.update({
       where: { id: userId },
       data: { role },
@@ -217,16 +247,17 @@ export const updateUserRole = async (userId, role) => {
     return user;
   } catch (error) {
     logger.error('Error in updateUserRole:', error);
-    throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating user role');
   }
 };
 
 export const userService = {
-  getUserById,
-  getUserByEmail,
+  getFullUserById,
+  getPublicUserById,
   updateUser,
   deleteUser,
-  getAllUsers,
   searchUsers,
+  // Admin functions
+  getAllUsers,
   updateUserRole,
 };

@@ -1,158 +1,77 @@
 import authService from '../services/auth.service.js';
-import {logger} from '../config/logger.js';
+// import { logger } from '../config/logger.js'; // <-- REMOVED
+import { asyncHandler } from '../utils/asyncHandler.js';
+import { ApiResponse } from '../utils/ApiResponse.js';
+import { HTTP_STATUS } from '../utils/constants.js';
 
 class AuthController {
   
-  async googleMobileAuth(req, res) {
-    try {
-      const { idToken, deviceInfo } = req.body;
+  googleMobileAuth = asyncHandler(async (req, res) => {
+    const { idToken, deviceInfo } = req.body;
 
-      if (!idToken) {
-        return res.status(400).json({
-          success: false,
-          message: 'ID token is required',
-        });
-      }
+    const result = await authService.verifyGoogleToken(
+      idToken,
+      req.ip,
+      deviceInfo || {}
+    );
 
-      const result = await authService.verifyGoogleToken(
-        idToken,
-        req.ip,
-        deviceInfo || {}
-      );
+    const message = result.isNewUser ? 'Account created successfully' : 'Login successful';
+    const data = {
+      user: result.user,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+      isNewUser: result.isNewUser,
+    };
 
-      return res.status(200).json({
-        success: true,
-        message: result.isNewUser ? 'Account created successfully' : 'Login successful',
-        data: {
-          user: result.user,
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
-          isNewUser: result.isNewUser,
-        },
-      });
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, message));
+  });
 
-    } catch (error) {
-      logger.error('Google auth error:', error);
-      return res.status(401).json({
-        success: false,
-        message: error.message || 'Authentication failed',
-      });
-    }
-  }
+  refreshToken = asyncHandler(async (req, res) => {
+    const { refreshToken } = req.body;
 
-  async refreshToken(req, res) {
-    try {
-      const { refreshToken } = req.body;
+    const result = await authService.refreshAccessToken(refreshToken, req.ip);
 
-      if (!refreshToken) {
-        return res.status(400).json({
-          success: false,
-          message: 'Refresh token is required',
-        });
-      }
+    const data = {
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+    };
 
-      const result = await authService.refreshAccessToken(refreshToken, req.ip);
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, 'Token refreshed successfully'));
+  });
 
-      return res.status(200).json({
-        success: true,
-        message: 'Token refreshed successfully',
-        data: {
-          accessToken: result.accessToken,
-          refreshToken: result.refreshToken,
-          expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
-        },
-      });
+  logout = asyncHandler(async (req, res) => {
+    const { refreshToken } = req.body;
+    const userId = req.user.id;
 
-    } catch (error) {
-      logger.error('Refresh token error:', error);
-      return res.status(401).json({
-        success: false,
-        message: error.message || 'Token refresh failed',
-      });
-    }
-  }
+    await authService.logout(userId, refreshToken);
 
-  async logout(req, res) {
-    try {
-      const { refreshToken } = req.body;
-      const userId = req.user.id;
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Logged out successfully'));
+  });
 
-      await authService.logout(userId, refreshToken);
+  sendPhoneOTP = asyncHandler(async (req, res) => {
+    const { phone, countryCode } = req.body;
+    const userId = req.user.id;
 
-      return res.status(200).json({
-        success: true,
-        message: 'Logged out successfully',
-      });
+    await authService.sendPhoneOTP(userId, phone, countryCode);
 
-    } catch (error) {
-      logger.error('Logout error:', error);
-      return res.status(500).json({
-        success: false,
-        message: 'Logout failed',
-      });
-    }
-  }
+    const data = {
+      expiresIn: 300, // 5 minutes
+      otpSentTo: `${countryCode || '+91'}${phone}`,
+    };
 
-  async sendPhoneOTP(req, res) {
-    try {
-      const { phone, countryCode = '+91' } = req.body;
-      const userId = req.user.id;
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, 'OTP sent successfully'));
+  });
 
-      if (!phone) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone number is required',
-        });
-      }
+  verifyPhoneOTP = asyncHandler(async (req, res) => {
+    const { phone, otp } = req.body;
+    const userId = req.user.id;
 
-      await authService.sendPhoneOTP(userId, phone, countryCode);
+    await authService.verifyPhoneOTP(userId, phone, otp);
 
-      return res.status(200).json({
-        success: true,
-        message: 'OTP sent successfully',
-        data: {
-          expiresIn: 300,
-          otpSentTo: `${countryCode}${phone}`,
-        },
-      });
-
-    } catch (error) {
-      logger.error('Send OTP error:', error);
-      return res.status(400).json({
-        success: false,
-        message: error.message || 'Failed to send OTP',
-      });
-    }
-  }
-
-  async verifyPhoneOTP(req, res) {
-    try {
-      const { phone, otp } = req.body;
-      const userId = req.user.id;
-
-      if (!phone || !otp) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone number and OTP are required',
-        });
-      }
-
-      await authService.verifyPhoneOTP(userId, phone, otp);
-
-      return res.status(200).json({
-        success: true,
-        message: 'Phone verified successfully',
-      });
-
-    } catch (error) {
-      logger.error('Verify OTP error:', error);
-      return res.status(400).json({
-        success: false,
-        message: error.message || 'OTP verification failed',
-      });
-    }
-  }
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Phone verified successfully'));
+  });
 }
 
 export default new AuthController();

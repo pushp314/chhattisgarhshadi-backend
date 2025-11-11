@@ -1,6 +1,12 @@
 import { Router } from 'express';
 import { userController } from '../controllers/user.controller.js';
 import { authenticate } from '../middleware/auth.js';
+import { validate } from '../middleware/validate.middleware.js';
+import {
+  objectIdSchema,
+  updateMeSchema,
+  searchUsersSchema,
+} from '../validations/user.validation.js';
 
 const router = Router();
 
@@ -16,30 +22,30 @@ router.get('/me', userController.getMyProfile);
 
 /**
  * @route   PUT /api/users/me
- * @desc    Update current user
+ * @desc    Update current user's non-critical data
  * @access  Private
  */
-router.put('/me', userController.updateMe);
+router.put('/me', validate(updateMeSchema), userController.updateMe);
 
 /**
  * @route   DELETE /api/users/me
- * @desc    Delete current user account
+ * @desc    Delete current user account (Soft Delete)
  * @access  Private
  */
 router.delete('/me', userController.deleteMe);
 
 /**
  * @route   GET /api/users/search
- * @desc    Search users
+ * @desc    Search other users (public, paginated)
  * @access  Private
  */
-router.get('/search', userController.searchUsers);
+router.get('/search', validate(searchUsersSchema), userController.searchUsers);
 
 /**
  * @route   GET /api/users/:id
- * @desc    Get user by ID
+ * @desc    Get another user's public profile by ID
  * @access  Private
  */
-router.get('/:id', userController.getUserById);
+router.get('/:id', validate(objectIdSchema), userController.getUserById);
 
 export default router;
