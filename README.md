@@ -79,7 +79,6 @@ chhattisgarh-shadi-backend/
 │   │   ├── firebase.js        # Firebase Admin SDK
 │   │   ├── logger.js          # Winston logger
 │   │   ├── msg91.js           # MSG91 API
-│   │   ├── passport.js        # Google OAuth
 │   │   └── razorpay.js        # Razorpay client
 │   ├── controllers/           # Request handlers
 │   ├── middleware/            # Express middleware
