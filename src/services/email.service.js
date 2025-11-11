@@ -14,7 +14,7 @@ import { logger } from '../config/logger.js';
  * @param {string} html - Email HTML content
  * @returns {Promise<Object>}
  */
-export const sendEmail = async (to, subject, text, html = null) => {
+export const sendEmail = async (to, subject, text, _html = null) => { 
   try {
     // Placeholder implementation
     // In production, integrate with email service provider
