@@ -1,39 +1,49 @@
 import { PrismaClient } from '@prisma/client';
 import { logger } from './logger.js';
 
-/**
- * Prisma Client Singleton
- * Ensures only one instance of PrismaClient is created
- */
 const prismaClientSingleton = () => {
   return new PrismaClient({
     log: [
-      { level: 'query', emit: 'event' },
-      { level: 'error', emit: 'stdout' },
-      { level: 'warn', emit: 'stdout' },
+      { level: 'error', emit: 'event' },
+      { level: 'warn', emit: 'event' },
     ],
+    datasources: {
+      db: {
+        url: process.env.DATABASE_URL,
+      },
+    },
   });
 };
 
-// Declare global prisma variable
+// Singleton pattern
 const globalForPrisma = globalThis;
-
-// Create or reuse prisma instance
 const prisma = globalForPrisma.prisma ?? prismaClientSingleton();
 
-// Log database queries in development
-if (process.env.NODE_ENV !== 'production') {
-  prisma.$on('query', (e) => {
-    logger.debug(`Query: ${e.query}`);
-    logger.debug(`Duration: ${e.duration}ms`);
-  });
-}
-
-// Store prisma instance in global scope in development to prevent hot reload issues
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
 }
 
-logger.info('Prisma Client initialized successfully');
+// Event listeners
+prisma.$on('error', (e) => {
+  logger.error('Prisma error:', e);
+});
+
+prisma.$on('warn', (e) => {
+  logger.warn('Prisma warning:', e);
+});
+
+// Connection test
+prisma.$connect()
+  .then(() => {
+    logger.info('Prisma Client initialized successfully');
+  })
+  .catch((err) => {
+    logger.error('Failed to connect Prisma Client:', err);
+  });
+
+// Graceful shutdown
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
+});
 
 export default prisma;
