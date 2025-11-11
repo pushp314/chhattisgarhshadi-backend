@@ -1,4 +1,8 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import {
+  PutObjectCommand,
+  DeleteObjectCommand,
+  GetObjectCommand,
+} from '@aws-sdk/client-s3'; // 'S3Client' was removed here
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, getBucketName } from '../config/aws.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -11,9 +15,14 @@ import sharp from 'sharp';
  * Upload file to S3
  * @param {Object} file - File object from multer
  * @param {string} folder - S3 folder name
+ * @param {boolean} isPublic - Whether the file should be publicly readable
  * @returns {Promise<Object>}
  */
-export const uploadToS3 = async (file, folder = 'uploads') => {
+export const uploadToS3 = async (
+  file,
+  folder = 'uploads',
+  isPublic = false
+) => {
   try {
     const filename = generateUniqueFilename(file.originalname);
     const key = generateS3Key(folder, filename);
@@ -23,89 +32,34 @@ export const uploadToS3 = async (file, folder = 'uploads') => {
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
-      ACL: 'public-read',
+      // CRITICAL FIX: Only set ACL if it's explicitly public
+      ...(isPublic && { ACL: 'public-read' }),
     });
 
     await s3Client.send(command);
 
-    const url = `https://${getBucketName()}.s3.amazonaws.com/${key}`;
+    const s3Url = `https://${getBucketName()}.s3.amazonaws.com/${key}`;
 
-    logger.info(`File uploaded to S3: ${key}`);
+    logger.info(`File uploaded to S3: ${key} (public: ${isPublic})`);
 
     return {
-      url,
-      key,
+      key, // Always return the key
+      url: isPublic ? s3Url : null, // Only return public URL if public
       filename,
       size: file.size,
       mimetype: file.mimetype,
     };
   } catch (error) {
     logger.error('Error in uploadToS3:', error);
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to upload file');
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'Failed to upload file'
+    );
   }
 };
 
 /**
- * Upload multiple files to S3
- * @param {Array} files - Array of file objects
- * @param {string} folder - S3 folder name
- * @returns {Promise<Array>}
- */
-export const uploadMultipleToS3 = async (files, folder = 'uploads') => {
-  try {
-    const uploadPromises = files.map(file => uploadToS3(file, folder));
-    return await Promise.all(uploadPromises);
-  } catch (error) {
-    logger.error('Error in uploadMultipleToS3:', error);
-    throw error;
-  }
-};
-
-/**
- * Delete file from S3
- * @param {string} key - S3 object key
- * @returns {Promise<void>}
- */
-export const deleteFromS3 = async (key) => {
-  try {
-    const command = new DeleteObjectCommand({
-      Bucket: getBucketName(),
-      Key: key,
-    });
-
-    await s3Client.send(command);
-
-    logger.info(`File deleted from S3: ${key}`);
-  } catch (error) {
-    logger.error('Error in deleteFromS3:', error);
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to delete file');
-  }
-};
-
-/**
- * Generate presigned URL for private files
- * @param {string} key - S3 object key
- * @param {number} expiresIn - URL expiry in seconds
- * @returns {Promise<string>}
- */
-export const getPresignedUrl = async (key, expiresIn = 3600) => {
-  try {
-    const command = new GetObjectCommand({
-      Bucket: getBucketName(),
-      Key: key,
-    });
-
-    const url = await getSignedUrl(s3Client, command, { expiresIn });
-
-    return url;
-  } catch (error) {
-    logger.error('Error in getPresignedUrl:', error);
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to generate presigned URL');
-  }
-};
-
-/**
- * Process and upload image with thumbnail
+ * Process and upload image with thumbnail (Public)
  * @param {Object} file - File object from multer
  * @param {string} folder - S3 folder name
  * @returns {Promise<Object>}
@@ -131,16 +85,25 @@ export const processAndUploadImage = async (file, folder = 'photos') => {
       originalname: file.originalname.replace(/\.[^/.]+$/, '.jpg'),
       mimetype: 'image/jpeg',
     };
-    const mainImage = await uploadToS3(mainImageFile, folder);
+    // Profile photos are public
+    const mainImage = await uploadToS3(mainImageFile, folder, true);
 
     // Upload thumbnail
     const thumbnailFile = {
       ...file,
       buffer: thumbnail,
-      originalname: `thumb_${file.originalname.replace(/\.[^/.]+$/, '.jpg')}`,
+      originalname: `thumb_${file.originalname.replace(
+        /\.[^/.]+$/,
+        '.jpg'
+      )}`,
       mimetype: 'image/jpeg',
     };
-    const thumbnailImage = await uploadToS3(thumbnailFile, `${folder}/thumbnails`);
+    // Thumbnails are also public
+    const thumbnailImage = await uploadToS3(
+      thumbnailFile,
+      `${folder}/thumbnails`,
+      true
+    );
 
     return {
       original: mainImage,
@@ -148,7 +111,61 @@ export const processAndUploadImage = async (file, folder = 'photos') => {
     };
   } catch (error) {
     logger.error('Error in processAndUploadImage:', error);
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to process and upload image');
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'Failed to process and upload image'
+    );
+  }
+};
+
+/**
+ * Delete file from S3
+ * @param {string} key - S3 object key
+ * @returns {Promise<void>}
+ */
+export const deleteFile = async (key) => {
+  try {
+    const command = new DeleteObjectCommand({
+      Bucket: getBucketName(),
+      Key: key,
+    });
+
+    await s3Client.send(command);
+
+    logger.info(`File deleted from S3: ${key}`);
+  } catch (error) {
+    logger.error('Error in deleteFile:', error);
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'Failed to delete file'
+    );
+  }
+};
+
+/**
+ * Generate presigned URL for private files
+ * @param {string} key - S3 object key
+ * @param {number} expiresIn - URL expiry in seconds
+ * @returns {Promise<string>}
+ */
+export const getPresignedUrl = async (key, expiresIn = 3600) => {
+  if (!key) return null;
+
+  try {
+    const command = new GetObjectCommand({
+      Bucket: getBucketName(),
+      Key: key,
+    });
+
+    const url = await getSignedUrl(s3Client, command, { expiresIn });
+
+    return url;
+  } catch (error) {
+    logger.error('Error in getPresignedUrl:', error);
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      'Failed to generate presigned URL'
+    );
   }
 };
 
@@ -158,20 +175,25 @@ export const processAndUploadImage = async (file, folder = 'photos') => {
  * @returns {string} S3 key
  */
 export const extractKeyFromUrl = (url) => {
+  if (!url) return null;
   try {
-    const urlObj = new URL(url);
-    return urlObj.pathname.substring(1); // Remove leading slash
+    // Handle both full URLs and simple keys
+    if (url.startsWith('http')) {
+      const urlObj = new URL(url);
+      return decodeURIComponent(urlObj.pathname.substring(1)); // Remove leading slash
+    }
+    // Assume it's already a key if no "http"
+    return url;
   } catch (error) {
     logger.error('Error extracting key from URL:', error);
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid S3 URL');
+    return null; // Return null instead of throwing
   }
 };
 
 export const uploadService = {
   uploadToS3,
-  uploadMultipleToS3,
-  deleteFromS3,
-  getPresignedUrl,
   processAndUploadImage,
+  deleteFile,
+  getPresignedUrl,
   extractKeyFromUrl,
 };

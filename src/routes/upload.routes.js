@@ -2,8 +2,6 @@ import { Router } from 'express';
 import { uploadController } from '../controllers/upload.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import {
-  uploadSingleImage,
-  uploadMultipleImages,
   uploadProfilePhoto,
   uploadProfilePhotos,
   uploadDocument,
@@ -16,70 +14,45 @@ const router = Router();
 router.use(authenticate);
 
 /**
- * @route   POST /api/uploads/single
- * @desc    Upload single file
- * @access  Private
- */
-router.post(
-  '/single',
-  uploadSingleImage,
-  handleMulterError,
-  uploadController.uploadSingle
-);
-
-/**
- * @route   POST /api/uploads/multiple
- * @desc    Upload multiple files
- * @access  Private
- */
-router.post(
-  '/multiple',
-  uploadMultipleImages,
-  handleMulterError,
-  uploadController.uploadMultiple
-);
-
-/**
  * @route   POST /api/uploads/profile-photo
- * @desc    Upload profile photo
+ * @desc    Upload single profile photo
  * @access  Private
  */
 router.post(
   '/profile-photo',
-  uploadProfilePhoto,
-  handleMulterError,
-  uploadController.uploadProfilePhoto
+  uploadProfilePhoto, // Multer middleware
+  handleMulterError, // Multer error handler
+  uploadController.uploadProfilePhoto // Controller
 );
 
 /**
  * @route   POST /api/uploads/profile-photos
- * @desc    Upload multiple profile photos
+ * @desc    Upload multiple profile photos (up to 6)
  * @access  Private
  */
 router.post(
   '/profile-photos',
-  uploadProfilePhotos,
-  handleMulterError,
-  uploadController.uploadProfilePhotos
+  uploadProfilePhotos, // Multer middleware
+  handleMulterError, // Multer error handler
+  uploadController.uploadProfilePhotos // Controller
 );
 
 /**
  * @route   POST /api/uploads/id-proof
- * @desc    Upload ID proof
+ * @desc    Upload ID proof (PDF or image)
  * @access  Private
  */
 router.post(
   '/id-proof',
-  uploadDocument,
-  handleMulterError,
-  uploadController.uploadIdProof
+  uploadDocument, // Multer middleware
+  handleMulterError, // Multer error handler
+  uploadController.uploadIdProof // Controller
 );
 
-/**
- * @route   DELETE /api/uploads
- * @desc    Delete file
- * @access  Private
- */
-router.delete('/', uploadController.deleteFile);
+//
+// NOTE: The generic /single, /multiple, and /delete routes have been
+// removed as they were either unused or a security risk.
+// File deletion is handled via DELETE /api/profiles/photos/:mediaId
+//
 
 export default router;

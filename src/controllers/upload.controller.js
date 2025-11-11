@@ -3,55 +3,44 @@ import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
 import { uploadService } from '../services/upload.service.js';
 import { profileService } from '../services/profile.service.js';
-import { HTTP_STATUS, SUCCESS_MESSAGES } from '../utils/constants.js';
+import { HTTP_STATUS, MEDIA_TYPES } from '../utils/constants.js'; // Ensure MEDIA_TYPES is in constants.js
 
 /**
- * Upload single file
- */
-export const uploadSingle = asyncHandler(async (req, res) => {
-  if (!req.file) {
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'No file uploaded');
-  }
-
-  const result = await uploadService.uploadToS3(req.file, 'uploads');
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result, SUCCESS_MESSAGES.UPLOAD_SUCCESS)
-  );
-});
-
-/**
- * Upload multiple files
- */
-export const uploadMultiple = asyncHandler(async (req, res) => {
-  if (!req.files || req.files.length === 0) {
-    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'No files uploaded');
-  }
-
-  const results = await uploadService.uploadMultipleToS3(req.files, 'uploads');
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, results, SUCCESS_MESSAGES.UPLOAD_SUCCESS)
-  );
-});
-
-/**
- * Upload profile photo
+ * Upload single profile photo
  */
 export const uploadProfilePhoto = asyncHandler(async (req, res) => {
   if (!req.file) {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'No file uploaded');
   }
 
-  // Process and upload image with thumbnail
-  const result = await uploadService.processAndUploadImage(req.file, 'profile-photos');
-
-  // Add photo to user profile
-  await profileService.addPhoto(req.user.id, result.original.url);
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result, 'Profile photo uploaded successfully')
+  // 1. Process and upload image to S3 (public)
+  const result = await uploadService.processAndUploadImage(
+    req.file,
+    `users/${req.user.id}/photos`
   );
+
+  // 2. Create Media record in database
+  const mediaData = {
+    url: result.original.url,
+    thumbnailUrl: result.thumbnail.url,
+    key: result.original.key,
+    thumbnailKey: result.thumbnail.key,
+    fileName: result.original.filename,
+    fileSize: result.original.size,
+    mimeType: result.original.mimetype,
+  };
+  
+  const media = await profileService.addPhoto(
+    req.user.id,
+    mediaData,
+    MEDIA_TYPES.PROFILE_PHOTO
+  );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, media, 'Profile photo uploaded successfully')
+    );
 });
 
 /**
@@ -62,20 +51,44 @@ export const uploadProfilePhotos = asyncHandler(async (req, res) => {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'No files uploaded');
   }
 
-  const uploadPromises = req.files.map(file =>
-    uploadService.processAndUploadImage(file, 'profile-photos')
+  const uploadPromises = req.files.map((file) =>
+    uploadService.processAndUploadImage(
+      file,
+      `users/${req.user.id}/photos`
+    )
   );
 
   const results = await Promise.all(uploadPromises);
 
-  // Add all photos to user profile
-  for (const result of results) {
-    await profileService.addPhoto(req.user.id, result.original.url);
-  }
+  // Create Media records in database
+  const addMediaPromises = results.map((result) => {
+     const mediaData = {
+      url: result.original.url,
+      thumbnailUrl: result.thumbnail.url,
+      key: result.original.key,
+      thumbnailKey: result.thumbnail.key,
+      fileName: result.original.filename,
+      fileSize: result.original.size,
+      mimeType: result.original.mimetype,
+    };
+    return profileService.addPhoto(
+      req.user.id,
+      mediaData,
+      MEDIA_TYPES.GALLERY_PHOTO // Use GALLERY_PHOTO for non-default
+    );
+  });
 
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, results, 'Profile photos uploaded successfully')
-  );
+  const mediaItems = await Promise.all(addMediaPromises);
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        mediaItems,
+        'Profile photos uploaded successfully'
+      )
+    );
 });
 
 /**
@@ -86,35 +99,46 @@ export const uploadIdProof = asyncHandler(async (req, res) => {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'No file uploaded');
   }
 
-  const result = await uploadService.uploadToS3(req.file, 'id-proofs');
-
-  // Update profile with ID proof URL
-  await profileService.updateProfile(req.user.id, { idProof: result.url });
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, result, 'ID proof uploaded successfully')
+  // 1. Upload to S3 as PRIVATE
+  const result = await uploadService.uploadToS3(
+    req.file,
+    `users/${req.user.id}/documents`,
+    false // isPublic = false
   );
-});
 
-/**
- * Delete file
- */
-export const deleteFile = asyncHandler(async (req, res) => {
-  const { url } = req.body;
+  // 2. Create Media record in database
+  const mediaData = {
+    url: null, // No public URL
+    thumbnailUrl: null,
+    key: result.key, // Store the private key
+    thumbnailKey: null,
+    fileName: result.filename,
+    fileSize: result.size,
+    mimeType: result.mimetype,
+  };
 
-  const key = uploadService.extractKeyFromUrl(url);
-  await uploadService.deleteFromS3(key);
-
-  res.status(HTTP_STATUS.OK).json(
-    new ApiResponse(HTTP_STATUS.OK, null, 'File deleted successfully')
+  const media = await profileService.addPhoto(
+    req.user.id,
+    mediaData,
+    MEDIA_TYPES.ID_PROOF
   );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        {
+          message: 'ID proof uploaded successfully and is pending verification.',
+          mediaId: media.id,
+        },
+        'ID proof uploaded successfully'
+      )
+    );
 });
 
 export const uploadController = {
-  uploadSingle,
-  uploadMultiple,
   uploadProfilePhoto,
   uploadProfilePhotos,
   uploadIdProof,
-  deleteFile,
 };
