@@ -8,6 +8,15 @@ export const USER_ROLES = {
 };
 
 /**
+ * Language Options (Matches Prisma Enum)
+ */
+export const LANGUAGE = {
+  EN: 'EN', // English
+  HI: 'HI', // Hindi
+  CG: 'CG', // Chhattisgarhi
+};
+
+/**
  * Gender Options
  */
 export const GENDER = {
@@ -17,14 +26,64 @@ export const GENDER = {
 };
 
 /**
- * Marital Status Options
+ * Religion Options (Matches Prisma Enum)
  */
-export const MARITAL_STATUS = {
-  SINGLE: 'SINGLE',
-  DIVORCED: 'DIVORCED',
-  WIDOWED: 'WIDOWED',
+export const RELIGION = {
+  HINDU: 'HINDU',
+  MUSLIM: 'MUSLIM',
+  CHRISTIAN: 'CHRISTIAN',
+  SIKH: 'SIKH',
+  BUDDHIST: 'BUDDHIST',
+  JAIN: 'JAIN',
+  PARSI: 'PARSI',
+  JEWISH: 'JEWISH',
+  BAHAI: 'BAHAI',
+  NO_RELIGION: 'NO_RELIGION',
+  SPIRITUAL: 'SPIRITUAL',
+  OTHER: 'OTHER',
 };
 
+/**
+ * Mother Tongue Options (Matches Prisma Enum)
+ */
+export const MOTHER_TONGUE = {
+  CHHATTISGARHI: 'CHHATTISGARHI',
+  HINDI: 'HINDI',
+  ENGLISH: 'ENGLISH',
+  TAMIL: 'TAMIL',
+  TELUGU: 'TELUGU',
+  MALAYALAM: 'MALAYALAM',
+  KANNADA: 'KANNADA',
+  MARATHI: 'MARATHI',
+  GUJARATI: 'GUJARATI',
+  BENGALI: 'BENGALI',
+  PUNJABI: 'PUNJABI',
+  URDU: 'URDU',
+  ODIA: 'ODIA',
+  ASSAMESE: 'ASSAMESE',
+  KONKANI: 'KONKANI',
+  KASHMIRI: 'KASHMIRI',
+  SANSKRIT: 'SANSKRIT',
+  SINDHI: 'SINDHI',
+  NEPALI: 'NEPALI',
+  MANIPURI: 'MANIPURI',
+  BODO: 'BODO',
+  DOGRI: 'DOGRI',
+  MAITHILI: 'MAITHILI',
+  SANTALI: 'SANTALI',
+  OTHER: 'OTHER',
+};
+
+/**
+ * Marital Status Options (Matches Prisma Enum)
+ */
+export const MARITAL_STATUS = {
+  NEVER_MARRIED: 'NEVER_MARRIED',
+  DIVORCED: 'DIVORCED',
+  WIDOWED: 'WIDOWED',
+  AWAITING_DIVORCE: 'AWAITING_DIVORCE',
+  ANNULLED: 'ANNULLED',
+};
 /**
  * Match Status Options
  */
@@ -132,6 +191,30 @@ export const SOCKET_EVENTS = {
   USER_OFFLINE: 'user:offline',
   TYPING_START: 'typing:start',
   TYPING_STOP: 'typing:stop',
+};
+
+/**
+ * Media Types (Matches Prisma Enum: MediaType)
+ */
+export const MEDIA_TYPES = {
+  PROFILE_PHOTO: 'PROFILE_PHOTO',
+  GALLERY_PHOTO: 'GALLERY_PHOTO',
+  ID_PROOF: 'ID_PROOF',
+  ADDRESS_PROOF: 'ADDRESS_PROOF',
+  INCOME_PROOF: 'INCOME_PROOF',
+  EDUCATION_CERTIFICATE: 'EDUCATION_CERTIFICATE',
+  CHAT_IMAGE: 'CHAT_IMAGE',
+  OTHER_DOCUMENT: 'OTHER_DOCUMENT',
+};
+
+/**
+ * Subscription Status Options
+ */
+export const SUBSCRIPTION_STATUS = {
+  PENDING: 'PENDING',
+  ACTIVE: 'ACTIVE',
+  EXPIRED: 'EXPIRED',
+  CANCELLED: 'CANCELLED',
 };
 
 /**
