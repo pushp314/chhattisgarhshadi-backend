@@ -24,13 +24,13 @@ Edit `.env` and configure:
 #### Minimum Required for Development
 ```env
 NODE_ENV=development
-PORT=5000
+PORT=8080
 DATABASE_URL="postgresql://user:password@localhost:5432/chhattisgarh_shadi"
 JWT_ACCESS_SECRET="your-secret-key"
 JWT_REFRESH_SECRET="your-refresh-secret-key"
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
-GOOGLE_CALLBACK_URL="http://localhost:5000/api/auth/google/callback"
+GOOGLE_CALLBACK_URL="http://localhost:8080/api/auth/google/callback"
 CORS_ORIGIN="http://localhost:3000"
 ```
 
@@ -61,7 +61,7 @@ npm run dev
 npm start
 ```
 
-Server will start at: http://localhost:5000
+Server will start at: http://localhost:8080
 
 ## 🔧 Configuration Guide
 
@@ -71,7 +71,7 @@ Server will start at: http://localhost:5000
 2. Create a new project
 3. Enable "Google+ API"
 4. Create OAuth 2.0 credentials
-5. Add authorized redirect URI: `http://localhost:5000/api/auth/google/callback`
+5. Add authorized redirect URI: `http://localhost:8080/api/auth/google/callback`
 6. Copy Client ID and Client Secret to `.env`
 
 ### AWS S3 Setup
@@ -124,18 +124,18 @@ npm run prisma:studio
 
 1. **Health Check**
    ```bash
-   curl http://localhost:5000/health
+   curl http://localhost:8080/health
    ```
 
 2. **Google OAuth (Browser)**
    ```
-   http://localhost:5000/api/auth/google
+   http://localhost:8080/api/auth/google
    ```
 
 3. **With Authentication**
    ```bash
    curl -H "Authorization: Bearer YOUR_TOKEN" \
-        http://localhost:5000/api/users/me
+        http://localhost:8080/api/users/me
    ```
 
 ## 🐛 Troubleshooting
@@ -143,7 +143,7 @@ npm run prisma:studio
 ### Port Already in Use
 ```bash
 # Find and kill process
-lsof -ti:5000 | xargs kill -9
+lsof -ti:8080 | xargs kill -9
 ```
 
 ### Database Connection Error
@@ -202,7 +202,7 @@ If you encounter issues:
 
 If you see this message when starting the server:
 ```
-Server is running on http://localhost:5000
+Server is running on http://localhost:8080
 Database connected successfully
 Socket.io server initialized successfully
 ```

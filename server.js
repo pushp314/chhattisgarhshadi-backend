@@ -6,7 +6,7 @@ import { initializeSocket } from './src/socket/index.js';
 import { initializeFirebase } from './src/config/firebase.js';
 import prisma from './src/config/database.js';
 
-const PORT = config.PORT || 5000;
+const PORT = config.PORT || 8080;
 
 // Create HTTP server
 const httpServer = http.createServer(app);

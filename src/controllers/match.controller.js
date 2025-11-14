@@ -7,8 +7,9 @@ import { HTTP_STATUS, SUCCESS_MESSAGES } from '../utils/constants.js';
  * Send match request
  */
 export const sendMatchRequest = asyncHandler(async (req, res) => {
-  // req.body.toUserId is now validated by Zod
-  const match = await matchService.sendMatchRequest(req.user.id, req.body.toUserId);
+  // req.body.receiverId is now validated by Zod
+  const { receiverId, message } = req.body;
+  const match = await matchService.sendMatchRequest(req.user.id, receiverId, message);
 
   res
     .status(HTTP_STATUS.CREATED)

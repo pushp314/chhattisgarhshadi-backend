@@ -1,19 +1,35 @@
 import authService from '../services/auth.service.js';
-// import { logger } from '../config/logger.js'; // <-- REMOVED
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
 class AuthController {
   
   googleMobileAuth = asyncHandler(async (req, res) => {
-    const { idToken, deviceInfo } = req.body;
+    const { idToken, authorizationCode, redirectUri, deviceInfo } = req.body;
 
-    const result = await authService.verifyGoogleToken(
-      idToken,
-      req.ip,
-      deviceInfo || {}
-    );
+    let result;
+
+    // Support both flows: Web-Based OAuth (authorizationCode) and Legacy (idToken)
+    if (authorizationCode) {
+      // Web-Based OAuth flow (NEW)
+      result = await authService.verifyGoogleAuthCode(
+        authorizationCode,
+        redirectUri || 'com.chhattisgarhshaadi.app://oauth2redirect',
+        req.ip,
+        deviceInfo || {}
+      );
+    } else if (idToken) {
+      // Legacy idToken flow (BACKWARD COMPATIBILITY)
+      result = await authService.verifyGoogleToken(
+        idToken,
+        req.ip,
+        deviceInfo || {}
+      );
+    } else {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Either authorizationCode or idToken is required');
+    }
 
     const message = result.isNewUser ? 'Account created successfully' : 'Login successful';
     const data = {

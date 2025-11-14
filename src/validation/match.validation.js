@@ -3,10 +3,11 @@ import { MatchRequestStatus } from '@prisma/client'; // Import enum directly fro
 
 export const sendMatchRequestSchema = z.object({
   body: z.object({
-    toUserId: z.coerce
-      .number({ invalid_type_error: 'toUserId must be a number' })
+    receiverId: z.coerce
+      .number({ invalid_type_error: 'receiverId must be a number' })
       .int()
-      .positive('toUserId must be a positive integer'),
+      .positive('receiverId must be a positive integer'),
+    message: z.string().max(500).optional(),
   }),
 });
 

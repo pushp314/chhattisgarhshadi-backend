@@ -9,6 +9,40 @@ import { HTTP_STATUS } from '../utils/constants.js';
 
 class AuthService {
   
+  /**
+   * Verify Google authorization code (Web-Based OAuth)
+   * @param {string} authorizationCode - Authorization code from Google
+   * @param {string} redirectUri - Redirect URI used in OAuth flow
+   * @param {string} ipAddress - User IP address
+   * @param {Object} deviceInfo - Device information
+   * @returns {Promise<Object>} Auth result with user and tokens
+   */
+  async verifyGoogleAuthCode(authorizationCode, redirectUri, ipAddress, deviceInfo = {}) {
+    try {
+      // Exchange authorization code for user info
+      const googleUser = await googleAuthClient.verifyAuthorizationCode(authorizationCode, redirectUri);
+
+      if (!googleUser.email) {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Email not provided by Google');
+      }
+
+      return await this._processGoogleAuth(googleUser, ipAddress, deviceInfo);
+    } catch (error) {
+      logger.error('❌ Google authorization code verification error:', error.message);
+      if (!(error instanceof ApiError)) {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, error.message || 'Authorization code verification failed');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Verify Google ID token (Legacy flow)
+   * @param {string} idToken - Google ID token
+   * @param {string} ipAddress - User IP address
+   * @param {Object} deviceInfo - Device information
+   * @returns {Promise<Object>} Auth result with user and tokens
+   */
   async verifyGoogleToken(idToken, ipAddress, deviceInfo = {}) {
     try {
       // Verify token with Google
@@ -18,116 +52,127 @@ class AuthService {
         throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Email not provided by Google');
       }
 
-      // Check if user exists by googleId
-      let user = await prisma.user.findUnique({
-        where: { googleId: googleUser.googleId },
-        include: {
-          profile: true,
-        },
-      });
-
-      let isNewUser = false;
-
-      if (!user) {
-        // Check if email already exists (from another auth method)
-        const existingUser = await prisma.user.findUnique({
-          where: { email: googleUser.email },
-        });
-
-        if (existingUser) {
-          throw new ApiError(HTTP_STATUS.CONFLICT, 'An account with this email already exists.');
-        }
-
-        // Create new user
-        isNewUser = true;
-        user = await prisma.user.create({
-          data: {
-            email: googleUser.email,
-            googleId: googleUser.googleId,
-            authProvider: 'GOOGLE',
-            profilePicture: googleUser.picture,
-            // isEmailVerified and emailVerifiedAt are set by default in schema.prisma
-            lastLoginAt: new Date(),
-            lastLoginIp: ipAddress,
-            deviceInfo: JSON.stringify(deviceInfo),
-          },
-          include: {
-            profile: true,
-          },
-        });
-
-        logger.info(`✅ New user created: ${googleUser.email} (ID: ${user.id})`);
-      } else {
-        // Update last login
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: {
-            lastLoginAt: new Date(),
-            lastLoginIp: ipAddress,
-            deviceInfo: JSON.stringify(deviceInfo),
-          },
-          include: {
-            profile: true,
-          },
-        });
-
-        logger.info(`✅ User logged in: ${googleUser.email} (ID: ${user.id})`);
-      }
-
-      // Check if account is banned
-      if (user.isBanned) {
-        throw new ApiError(HTTP_STATUS.FORBIDDEN, `Account suspended: ${user.banReason || 'Contact support'}`);
-      }
-
-      if (!user.isActive) {
-        throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Account is inactive');
-      }
-
-      // Generate JWT tokens
-      const accessToken = jwtUtils.generateAccessToken(user);
-      const refreshToken = jwtUtils.generateRefreshToken(user);
-      const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
-
-      // Store refresh token in database
-      await prisma.refreshToken.create({
-        data: {
-          userId: user.id,
-          token: refreshToken,
-          deviceId: deviceInfo?.deviceId || null,
-          deviceName: deviceInfo?.deviceName || null,
-          deviceType: deviceInfo?.deviceType || null,
-          ipAddress,
-          userAgent: deviceInfo?.userAgent || null,
-          expiresAt: refreshExpiresAt,
-        },
-      });
-
-      // Clean response
-      const userResponse = {
-        id: user.id,
-        email: user.email,
-        profilePicture: user.profilePicture,
-        role: user.role,
-        isPhoneVerified: user.isPhoneVerified,
-        preferredLanguage: user.preferredLanguage,
-        profile: user.profile,
-      };
-
-      return {
-        user: userResponse,
-        accessToken,
-        refreshToken,
-        isNewUser,
-      };
-
+      return await this._processGoogleAuth(googleUser, ipAddress, deviceInfo);
     } catch (error) {
       logger.error('❌ Google auth error:', error.message);
-      // Re-throw as ApiError if it's not one already
       if (!(error instanceof ApiError)) {
         throw new ApiError(HTTP_STATUS.UNAUTHORIZED, error.message || 'Authentication failed');
       }
       throw error;
     }
+  }
+
+  /**
+   * Common Google auth processing logic
+   * @private
+   */
+  async _processGoogleAuth(googleUser, ipAddress, deviceInfo) {
+    // Check if user exists by googleId
+    let user = await prisma.user.findUnique({
+      where: { googleId: googleUser.googleId },
+      include: {
+        profile: true,
+      },
+    });
+
+    let isNewUser = false;
+
+    if (!user) {
+      // Check if email already exists (from another auth method)
+      const existingUser = await prisma.user.findUnique({
+        where: { email: googleUser.email },
+      });
+
+      if (existingUser) {
+        throw new ApiError(HTTP_STATUS.CONFLICT, 'An account with this email already exists.');
+      }
+
+      // Create new user
+      isNewUser = true;
+      user = await prisma.user.create({
+        data: {
+          email: googleUser.email,
+          googleId: googleUser.googleId,
+          authProvider: 'GOOGLE',
+          profilePicture: googleUser.picture,
+          // isEmailVerified and emailVerifiedAt are set by default in schema.prisma
+          lastLoginAt: new Date(),
+          lastLoginIp: ipAddress,
+          deviceInfo: JSON.stringify(deviceInfo),
+        },
+        include: {
+          profile: true,
+        },
+      });
+
+      logger.info(`✅ New user created: ${googleUser.email} (ID: ${user.id})`);
+    } else {
+      // Update last login
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastLoginAt: new Date(),
+          lastLoginIp: ipAddress,
+          deviceInfo: JSON.stringify(deviceInfo),
+        },
+        include: {
+          profile: true,
+        },
+      });
+
+      logger.info(`✅ User logged in: ${googleUser.email} (ID: ${user.id})`);
+    }
+
+    // Check if account is banned
+    if (user.isBanned) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, `Account suspended: ${user.banReason || 'Contact support'}`);
+    }
+
+    if (!user.isActive) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Account is inactive');
+    }
+
+    // Generate JWT tokens
+    const accessToken = jwtUtils.generateAccessToken(user);
+    const refreshToken = jwtUtils.generateRefreshToken(user);
+    const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+    // Store refresh token in database
+    await prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        token: refreshToken,
+        deviceId: deviceInfo?.deviceId || null,
+        deviceName: deviceInfo?.deviceName || null,
+        deviceType: deviceInfo?.deviceType || null,
+        ipAddress,
+        userAgent: deviceInfo?.userAgent || null,
+        expiresAt: refreshExpiresAt,
+      },
+    });
+
+    // Clean response
+    const userResponse = {
+      id: user.id,
+      email: user.email,
+      firstName: user.profile?.firstName || null,
+      lastName: user.profile?.lastName || null,
+      profilePicture: user.profilePicture,
+      role: user.role,
+      isPhoneVerified: user.isPhoneVerified,
+      isActive: user.isActive,
+      preferredLanguage: user.preferredLanguage,
+      profile: user.profile,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    };
+
+    return {
+      user: userResponse,
+      accessToken,
+      refreshToken,
+      isNewUser,
+    };
   }
 
   async refreshAccessToken(refreshToken, ipAddress) {

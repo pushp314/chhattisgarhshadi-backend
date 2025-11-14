@@ -76,9 +76,21 @@ export const getProfileByUserId = async (userId) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
 
-    // Add calculated age
+    // Transform media to match frontend expectations
+    const transformedMedia = profile.media?.map(m => ({
+      id: m.id,
+      url: m.url,
+      thumbnailUrl: m.thumbnailUrl,
+      type: m.type,
+      isProfilePicture: m.isDefault, // Map isDefault to isProfilePicture
+    })) || [];
+
+    // Add calculated age and transformed media
     return {
       ...profile,
+      media: transformedMedia,
+      isVerified: profile.isVerified,
+      isActive: true,
       age: calculateAge(profile.dateOfBirth),
     };
   } catch (error) {

@@ -182,6 +182,7 @@ export const RATE_LIMITS = {
 export const SOCKET_EVENTS = {
   CONNECTION: 'connection',
   DISCONNECT: 'disconnect',
+  JOIN: 'join',
   MESSAGE_SEND: 'message:send',
   MESSAGE_RECEIVED: 'message:received',
   MESSAGE_READ: 'message:read',
@@ -189,8 +190,8 @@ export const SOCKET_EVENTS = {
   NOTIFICATION_RECEIVED: 'notification:received',
   USER_ONLINE: 'user:online',
   USER_OFFLINE: 'user:offline',
-  TYPING_START: 'typing:start',
-  TYPING_STOP: 'typing:stop',
+  TYPING_START: 'typing:started',
+  TYPING_STOP: 'typing:stopped',
 };
 
 /**

@@ -18,13 +18,14 @@ const userPublicSelect = {
 /**
  * Send match request
  * @param {number} fromUserId - Sender user ID
- * @param {number} toUserId - Receiver user ID
+ * @param {number} receiverId - Receiver user ID
+ * @param {string} message - Optional message to receiver
  * @returns {Promise<Object>}
  */
-export const sendMatchRequest = async (fromUserId, toUserId) => {
+export const sendMatchRequest = async (fromUserId, receiverId, message) => {
   try {
     // Check if sender is same as receiver
-    if (fromUserId === toUserId) {
+    if (fromUserId === receiverId) {
       throw new ApiError(
         HTTP_STATUS.BAD_REQUEST,
         'Cannot send match request to yourself'
@@ -33,7 +34,7 @@ export const sendMatchRequest = async (fromUserId, toUserId) => {
 
     // Check if receiver exists and has a profile
     const receiver = await prisma.user.findUnique({
-      where: { id: toUserId },
+      where: { id: receiverId },
       include: { profile: true },
     });
 
@@ -50,8 +51,8 @@ export const sendMatchRequest = async (fromUserId, toUserId) => {
     const existingMatch = await prisma.matchRequest.findFirst({
       where: {
         OR: [
-          { senderId: fromUserId, receiverId: toUserId },
-          { senderId: toUserId, receiverId: fromUserId },
+          { senderId: fromUserId, receiverId: receiverId },
+          { senderId: receiverId, receiverId: fromUserId },
         ],
       },
     });
@@ -63,12 +64,13 @@ export const sendMatchRequest = async (fromUserId, toUserId) => {
     const match = await prisma.matchRequest.create({
       data: {
         senderId: fromUserId,
-        receiverId: toUserId,
+        receiverId: receiverId,
         status: MATCH_STATUS.PENDING,
+        message: message || null,
       },
     });
 
-    logger.info(`Match request sent from ${fromUserId} to ${toUserId}`);
+    logger.info(`Match request sent from ${fromUserId} to ${receiverId}`);
     
     // Return the minimal match object, not the full user profiles
     return match;

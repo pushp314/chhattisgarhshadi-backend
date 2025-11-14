@@ -8,10 +8,10 @@ const paginationSchema = z.object({
 
 export const sendMessageSchema = z.object({
   body: z.object({
-    toUserId: z.coerce
-      .number({ invalid_type_error: 'toUserId must be a number' })
+    receiverId: z.coerce
+      .number({ invalid_type_error: 'receiverId must be a number' })
       .int()
-      .positive('toUserId must be a positive integer'),
+      .positive('receiverId must be a positive integer'),
     content: z
       .string({ required_error: 'content is required' })
       .min(1, 'Message content cannot be empty')

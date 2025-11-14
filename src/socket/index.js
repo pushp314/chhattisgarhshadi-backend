@@ -86,6 +86,13 @@ export const initializeSocket = (httpServer, config) => {
     // 3. Join user's personal room (for targeted emits)
     socket.join(`user:${socket.userId}`);
 
+    // Handle explicit join event from frontend
+    socket.on('join', (data) => {
+      logger.info(`User ${socket.userId} explicitly joined via 'join' event`);
+      // User already in their room, just acknowledge
+      socket.emit('joined', { userId: socket.userId, success: true });
+    });
+
     // Setup message handlers
     setupMessageHandlers(io, socket);
 

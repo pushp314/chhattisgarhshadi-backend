@@ -50,22 +50,22 @@ router.get(
 );
 
 /**
- * @route   PUT /api/matches/:matchId/accept
+ * @route   POST /api/matches/:matchId/accept
  * @desc    Accept match request
  * @access  Private
  */
-router.put(
+router.post(
   '/:matchId/accept',
   validate(matchIdParamSchema),
   matchController.acceptMatchRequest
 );
 
 /**
- * @route   PUT /api/matches/:matchId/reject
+ * @route   POST /api/matches/:matchId/reject
  * @desc    Reject match request
  * @access  Private
  */
-router.put(
+router.post(
   '/:matchId/reject',
   validate(matchIdParamSchema),
   matchController.rejectMatchRequest

@@ -3,12 +3,22 @@ import { z } from 'zod';
 // Regex for an Indian phone number (10 digits, starting with 6, 7, 8, or 9)
 const phoneRegex = /^[6-9]\d{9}$/;
 
-// Schema for Google Mobile Auth
+// Schema for Google Mobile Auth (supports both flows)
 export const googleMobileAuthSchema = z.object({
   body: z.object({
-    idToken: z.string({ required_error: 'idToken is required' }).min(1, 'idToken cannot be empty'),
+    // Web-Based OAuth flow (NEW)
+    authorizationCode: z.string().min(1).optional(),
+    redirectUri: z.string().url().optional(),
+    // Legacy idToken flow (BACKWARD COMPATIBILITY)
+    idToken: z.string().min(1).optional(),
     deviceInfo: z.object({}).passthrough().optional(), // Allow any device info object
-  }),
+  }).refine(
+    (data) => data.authorizationCode || data.idToken,
+    {
+      message: 'Either authorizationCode or idToken is required',
+      path: ['authorizationCode'],
+    }
+  ),
 });
 
 // Schema for Refresh Token

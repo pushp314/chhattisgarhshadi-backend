@@ -14,9 +14,9 @@ export const setupMessageHandlers = (io, socket) => {
    */
   socket.on(SOCKET_EVENTS.MESSAGE_SEND, async (data, callback) => {
     try {
-      const { toUserId, content } = data;
+      const { receiverId, content } = data;
 
-      if (!toUserId || !content) {
+      if (!receiverId || !content) {
         throw new Error('Invalid message data');
       }
 
@@ -24,19 +24,19 @@ export const setupMessageHandlers = (io, socket) => {
       // This now returns a message with "safe" user objects
       const message = await messageService.sendMessage(
         socket.userId,
-        toUserId,
+        receiverId,
         content
       );
 
       // 2. Emit to receiver's room (will send to all their devices)
-      io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
+      io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
       
       // 3. Acknowledge to sender that the message was sent successfully
       if (callback) {
         callback({ success: true, message });
       }
 
-      logger.info(`Socket message sent from ${socket.userId} to ${toUserId}`);
+      logger.info(`Socket message sent from ${socket.userId} to ${receiverId}`);
     } catch (error) {
       logger.error(`Socket error sending message: ${error.message}`);
       // 4. Acknowledge to sender that there was an error
@@ -83,11 +83,11 @@ export const setupMessageHandlers = (io, socket) => {
    * Handle typing start
    */
   socket.on(SOCKET_EVENTS.TYPING_START, (data) => {
-    const { toUserId } = data;
-    if (toUserId) {
+    const { receiverId } = data;
+    if (receiverId) {
       // Emit to the receiver's room
-      io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.TYPING_START, {
-        fromUser: socket.userId,
+      io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.TYPING_START, {
+        userId: socket.userId,
       });
     }
   });
@@ -96,11 +96,11 @@ export const setupMessageHandlers = (io, socket) => {
    * Handle typing stop
    */
   socket.on(SOCKET_EVENTS.TYPING_STOP, (data) => {
-    const { toUserId } = data;
-    if (toUserId) {
+    const { receiverId } = data;
+    if (receiverId) {
       // Emit to the receiver's room
-      io.to(`user:${toUserId}`).emit(SOCKET_EVENTS.TYPING_STOP, {
-        fromUser: socket.userId,
+      io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.TYPING_STOP, {
+        userId: socket.userId,
       });
     }
   });
