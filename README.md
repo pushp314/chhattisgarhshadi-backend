@@ -8,20 +8,30 @@ A production-ready backend API for a **React Native CLI mobile app** matrimonial
 
 ---
 
-## 📚 Documentation
+## 🚀 Quick Start
 
-| Document | Purpose |
-|----------|---------|
-| [🚀 Quick Reference](./QUICK_REFERENCE.md) | Start here! Quick links and examples |
-| [📖 API Documentation](./API_DOCUMENTATION.md) | Complete API reference |
-| [🔐 Google Cloud Setup](./GOOGLE_CLOUD_SETUP.md) | Configure Google OAuth step-by-step |
-| [📱 React Native Setup](./REACT_NATIVE_SETUP.md) | Connect your mobile app |
-| [🔑 OAuth with InAppBrowser](./GOOGLE_OAUTH_INAPPBROWSER.md) | Mobile OAuth implementation |
-| [🚢 Deployment Guide](./DEPLOYMENT_GUIDE.md) | Deploy to Render.com |
+**👉 New here? Start with:** [START_HERE.md](./START_HERE.md)
+
+**Backend is LIVE:** Test it now at `https://chhattisgarhshadi-backend.onrender.com/api/v1/health`
 
 ---
 
-> 📱 **For React Native developers:** See [REACT_NATIVE_SETUP.md](./REACT_NATIVE_SETUP.md) for complete mobile app integration guide
+## 📚 Complete Documentation
+
+| Document | Purpose | Time |
+|----------|---------|------|
+| **[🎯 START HERE](./START_HERE.md)** | **Begin here! Immediate action items** | 5 min |
+| [📋 Setup Summary](./SETUP_SUMMARY.md) | What's done & what's pending | 5 min |
+| [🚀 Quick Reference](./QUICK_REFERENCE.md) | Quick links, examples, troubleshooting | 10 min |
+| [📖 API Documentation](./API_DOCUMENTATION.md) | Complete API reference with all endpoints | 20 min |
+| [🔐 Google Cloud Setup](./GOOGLE_CLOUD_SETUP.md) | Step-by-step Google OAuth configuration | 15 min |
+| [📱 React Native Setup](./REACT_NATIVE_SETUP.md) | Connect your mobile app | 30 min |
+| [🔑 OAuth with InAppBrowser](./GOOGLE_OAUTH_INAPPBROWSER.md) | Mobile OAuth implementation guide | 20 min |
+| [🚢 Deployment Guide](./DEPLOYMENT_GUIDE.md) | Deploy to Render.com | 15 min |
+
+---
+
+> 📱 **For React Native developers:** See [START_HERE.md](./START_HERE.md) for immediate action items, then follow [REACT_NATIVE_SETUP.md](./REACT_NATIVE_SETUP.md)
 
 ## 🚀 Features
 
