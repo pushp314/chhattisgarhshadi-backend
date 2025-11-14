@@ -6,8 +6,8 @@ Matrimonial platform API for Chhattisgarh region: **Express.js + Prisma ORM + Po
 
 ### Key Components
 - **Authentication**: Google OAuth 2.0 ONLY (no passwords). Phone OTP is one-time verification, NOT for login
-- **Real-time**: Socket.io with JWT handshake auth, user presence via `onlineUsers` Map, room-based emits (`io.to('user:X')`)
-- **Storage**: Hybrid - S3 for production (`upload.service.js`), local filesystem fallback. Paths: `/uploads/profiles/{userId}/original/...`
+- **Real-time**: Socket.io with JWT handshake auth, user presence via `onlineUsers` Map (Set-based for multi-device), room-based emits (`io.to('user:X')`)
+- **Storage**: AWS S3 with presigned URLs for private files. Check `AWS_S3_BUCKET` env to determine if S3 is configured
 - **Payments**: Razorpay only (no other gateways)
 - **Notifications**: Multi-channel (SMS via MSG91, FCM push, in-app, email)
 - **Multi-language**: `EN/HI/CG` enums throughout (User.preferredLanguage, Notification.language)
@@ -150,19 +150,23 @@ const user = await prisma.user.findUnique({
 ```
 
 ### File Upload Flow
-Uses **multer with memory storage** → **S3 or local filesystem**:
-1. Middleware: `uploadProfilePhoto` or `uploadProfilePhotos` from `src/middleware/upload.js`
-2. Service: `upload.service.js` handles S3 upload OR local file save with Sharp (resize, compress)
-3. Store paths: S3 keys or `/uploads/profiles/{userId}/original/photo-{timestamp}.jpg`
-4. Save metadata to `media` table with `MediaType` enum (from `constants.js`)
-5. **CRITICAL**: Check if S3 is configured via `AWS_S3_BUCKET` env var to determine storage backend
+Uses **multer with memory storage** → **AWS S3**:
+1. Middleware: `uploadProfilePhoto` or `uploadProfilePhotos` from `src/middleware/upload.js` (multer memory storage)
+2. Service: `upload.service.js` handles S3 upload with Sharp (resize to 1200x1200, compress, generate 300x300 thumbnails)
+3. Public vs Private: Profile photos are public (`ACL: 'public-read'`), documents are private (use presigned URLs via `getPresignedUrl()`)
+4. Store S3 keys in `media` table with `MediaType` enum (from `constants.js`)
+5. URL handling: Public files get direct S3 URLs, private files require presigned URLs (1-hour expiry default)
+6. Extract S3 keys from URLs using `extractKeyFromUrl()` before deletion
 
 ### Socket.io Real-time
 Socket handler in `src/socket/index.js`:
 - Authentication via JWT token in handshake (`socket.handshake.auth.token` or `socket.handshake.query.token`)
-- User presence tracking via `onlineUsers` Map (handles multiple connections per user)
+- JWT payload uses `decoded.id` (NOT `decoded.userId`) - set as `socket.userId`
+- User presence tracking: `onlineUsers` is a Map<userId, Set<socketId>> for multi-device support
+- User goes online only when first socket connects, offline when last socket disconnects
 - Always emit to rooms: `io.to(\`user:\${userId}\`).emit(event, data)` (NOT directly to `socket.id`)
 - Socket events defined in `SOCKET_EVENTS` constant (MESSAGE_RECEIVED, USER_ONLINE, etc.)
+- Each user auto-joins room `user:${userId}` on connection
 
 Key patterns:
 ```javascript

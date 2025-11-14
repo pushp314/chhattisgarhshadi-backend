@@ -2,9 +2,9 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
   GetObjectCommand,
-} from '@aws-sdk/client-s3'; // 'S3Client' was removed here
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3Client, getBucketName } from '../config/aws.js';
+import { s3Client, getBucketName, isS3Configured } from '../config/aws.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 import { generateUniqueFilename, generateS3Key } from '../utils/helpers.js';
@@ -24,6 +24,13 @@ export const uploadToS3 = async (
   isPublic = false
 ) => {
   try {
+    // Check if S3 is configured
+    if (!isS3Configured()) {
+      throw new ApiError(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        'S3 storage is not configured. Please contact administrator.'
+      );
+    }
     const filename = generateUniqueFilename(file.originalname);
     const key = generateS3Key(folder, filename);
 

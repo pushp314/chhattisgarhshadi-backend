@@ -1,4 +1,4 @@
-import { razorpayInstance, getWebhookSecret } from '../config/razorpay.js';
+import { razorpayInstance, getWebhookSecret, isRazorpayConfigured } from '../config/razorpay.js';
 import { config } from '../config/config.js'; // Import config for KEY_SECRET
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -20,6 +20,13 @@ import { getSocketIoInstance } from '../socket/index.js';
  */
 export const createOrder = async (userId, planId) => {
   try {
+    // Check if Razorpay is configured
+    if (!isRazorpayConfigured()) {
+      throw new ApiError(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        'Payment service is not configured. Please contact administrator.'
+      );
+    }
     // 1. Find the plan to get the secure amount
     const plan = await prisma.subscriptionPlan.findUnique({
       where: { id: planId, isActive: true },

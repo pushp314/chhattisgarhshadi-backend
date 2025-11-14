@@ -3,14 +3,28 @@ import { config } from './config.js';
 import { logger } from './logger.js';
 
 /**
- * Initialize Razorpay instance
+ * Check if Razorpay is configured
+ * @returns {boolean}
  */
-export const razorpayInstance = new Razorpay({
-  key_id: config.RAZORPAY_KEY_ID,
-  key_secret: config.RAZORPAY_KEY_SECRET,
-});
+export const isRazorpayConfigured = () => {
+  return !!(config.RAZORPAY_KEY_ID && config.RAZORPAY_KEY_SECRET);
+};
 
-logger.info('Razorpay client initialized successfully');
+/**
+ * Initialize Razorpay instance (only if configured)
+ */
+export const razorpayInstance = isRazorpayConfigured()
+  ? new Razorpay({
+      key_id: config.RAZORPAY_KEY_ID,
+      key_secret: config.RAZORPAY_KEY_SECRET,
+    })
+  : null;
+
+if (isRazorpayConfigured()) {
+  logger.info('Razorpay client initialized successfully');
+} else {
+  logger.warn('Razorpay is not configured. Payment features will be disabled.');
+}
 
 /**
  * Get Razorpay webhook secret

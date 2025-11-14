@@ -32,12 +32,12 @@ const envSchema = z.object({
   GOOGLE_CALLBACK_URL: z.string().optional(),  // ✅ Optional (not needed for mobile)
   
   // AWS S3
-  AWS_ACCESS_KEY_ID: z.string(),
-  AWS_SECRET_ACCESS_KEY: z.string(),
-  AWS_S3_BUCKET_NAME: z.string().optional(),   // ✅ Made optional
-  AWS_S3_BUCKET: z.string().optional(),        // Alternate naming
-  AWS_S3_REGION: z.string().optional(),        // ✅ Made optional
-  AWS_REGION: z.string().default('ap-south-1'), // ✅ Added default
+  AWS_ACCESS_KEY_ID: z.string().optional(),
+  AWS_SECRET_ACCESS_KEY: z.string().optional(),
+  AWS_S3_BUCKET_NAME: z.string().optional(),
+  AWS_S3_BUCKET: z.string().optional(),
+  AWS_S3_REGION: z.string().optional(),
+  AWS_REGION: z.string().default('ap-south-1'),
   
   // Firebase
   FIREBASE_PROJECT_ID: z.string().optional(),
@@ -45,14 +45,14 @@ const envSchema = z.object({
   FIREBASE_CLIENT_EMAIL: z.string().optional(),
   
   // MSG91
-  MSG91_AUTH_KEY: z.string(),
+  MSG91_AUTH_KEY: z.string().optional(),
   MSG91_SENDER_ID: z.string().optional(),
   MSG91_TEMPLATE_ID: z.string().optional(),
   
   // Razorpay
-  RAZORPAY_KEY_ID: z.string(),
-  RAZORPAY_KEY_SECRET: z.string(),
-  RAZORPAY_WEBHOOK_SECRET: z.string().optional(), // ✅ Made optional
+  RAZORPAY_KEY_ID: z.string().optional(),
+  RAZORPAY_KEY_SECRET: z.string().optional(),
+  RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
 });
 
 export const config = envSchema.parse(process.env);
