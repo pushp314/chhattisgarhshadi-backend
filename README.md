@@ -1,6 +1,8 @@
 # Chhattisgarh Shadi - Matrimonial Backend
 
-A production-ready backend API for a matrimonial platform built with Express.js, Prisma ORM, and PostgreSQL.
+A production-ready backend API for a **React Native CLI mobile app** matrimonial platform built with Express.js, Prisma ORM, and PostgreSQL.
+
+> 📱 **For React Native developers:** See [REACT_NATIVE_SETUP.md](./REACT_NATIVE_SETUP.md) for complete mobile app integration guide
 
 ## 🚀 Features
 

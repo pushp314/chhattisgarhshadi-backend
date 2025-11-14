@@ -9,13 +9,22 @@ import { logger } from './config/logger.js';
 
 const app = express();
 
-// Security
-app.use(helmet());
+// Security (relaxed for development)
+if (process.env.NODE_ENV === 'production') {
+  app.use(helmet());
+} else {
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
+}
 
-// CORS
+// CORS (allow all in development)
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: process.env.CORS_ORIGIN || '*',
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
 // Parsers
