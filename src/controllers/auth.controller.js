@@ -43,6 +43,54 @@ class AuthController {
     return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, message));
   });
 
+  googleCallback = asyncHandler(async (req, res) => {
+    const { code, state, error } = req.query;
+
+    // Handle OAuth error from Google
+    if (error) {
+      const errorMessage = error === 'access_denied' 
+        ? 'User cancelled the authentication' 
+        : `Authentication failed: ${error}`;
+      
+      // Redirect to app with error
+      const appDeepLink = `com.chhattisgarhshaadi.app://oauth-error?error=${encodeURIComponent(errorMessage)}`;
+      return res.redirect(appDeepLink);
+    }
+
+    // Validate authorization code
+    if (!code) {
+      const appDeepLink = 'com.chhattisgarhshaadi.app://oauth-error?error=Authorization+code+missing';
+      return res.redirect(appDeepLink);
+    }
+
+    try {
+      // Exchange authorization code for user info and tokens
+      const redirectUri = process.env.GOOGLE_CALLBACK_URL || 
+                          `${req.protocol}://${req.get('host')}/api/v1/auth/google/callback`;
+      
+      const result = await authService.verifyGoogleAuthCode(
+        code,
+        redirectUri,
+        req.ip,
+        { userAgent: req.get('user-agent') }
+      );
+
+      // Redirect to app with tokens via deep link
+      const appDeepLink = `com.chhattisgarhshaadi.app://oauth-success?` +
+        `accessToken=${encodeURIComponent(result.accessToken)}&` +
+        `refreshToken=${encodeURIComponent(result.refreshToken)}&` +
+        `isNewUser=${result.isNewUser}`;
+      
+      return res.redirect(appDeepLink);
+
+    } catch (error) {
+      // Redirect to app with error
+      const errorMessage = error.message || 'Authentication failed';
+      const appDeepLink = `com.chhattisgarhshaadi.app://oauth-error?error=${encodeURIComponent(errorMessage)}`;
+      return res.redirect(appDeepLink);
+    }
+  });
+
   refreshToken = asyncHandler(async (req, res) => {
     const { refreshToken } = req.body;
 

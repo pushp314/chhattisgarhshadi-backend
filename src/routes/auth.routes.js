@@ -23,6 +23,12 @@ router.post(
   authController.googleMobileAuth
 );
 
+// Google OAuth Callback (for redirect-based flow)
+router.get(
+  '/google/callback',
+  authController.googleCallback
+);
+
 // Token Management
 router.post(
   '/refresh',
