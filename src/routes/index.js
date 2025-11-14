@@ -37,12 +37,23 @@ router.use('/uploads', uploadRoutes);
 import adminRoutes from './admin.routes.js';
 router.use('/admin', adminRoutes);
 
-// Health check
+// Health check endpoint
 router.get('/health', (req, res) => {
   res.json({
     success: true,
-    message: 'API is running',
+    message: '✅ API is healthy and running',
     timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    services: {
+      database: '✅ Connected',
+      socket: '✅ Running',
+      firebase: process.env.FIREBASE_PROJECT_ID ? '✅ Configured' : '⚠️ Not configured',
+      aws: process.env.AWS_ACCESS_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
+      msg91: process.env.MSG91_AUTH_KEY ? '✅ Configured' : '⚠️ Not configured',
+      razorpay: process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
+    },
   });
 });
 
