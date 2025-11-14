@@ -4,9 +4,13 @@
 
 The deployment error you encountered was due to missing environment variables. I've fixed the code to make AWS, MSG91, and Razorpay **optional**. However, you still need to set the **required** environment variables in Render.
 
-## Required Environment Variables (Must Set in Render)
+### 1. Set Environment Variables in Render
 
 Go to your Render dashboard → Select your service → Environment tab → Add these variables:
+
+> **⚠️ IMPORTANT: Do NOT set the PORT variable!**
+> 
+> Render automatically sets `PORT` (usually 10000). Your server is already configured to use `process.env.PORT`, so it will work automatically. Adding PORT manually may cause issues.
 
 ### 1. Database (REQUIRED)
 ```
