@@ -2,6 +2,25 @@
 
 A production-ready backend API for a **React Native CLI mobile app** matrimonial platform built with Express.js, Prisma ORM, and PostgreSQL.
 
+**🌐 Production URL:** `https://chhattisgarhshadi-backend.onrender.com`
+
+**📖 API Base URL:** `https://chhattisgarhshadi-backend.onrender.com/api/v1`
+
+---
+
+## 📚 Documentation
+
+| Document | Purpose |
+|----------|---------|
+| [🚀 Quick Reference](./QUICK_REFERENCE.md) | Start here! Quick links and examples |
+| [📖 API Documentation](./API_DOCUMENTATION.md) | Complete API reference |
+| [🔐 Google Cloud Setup](./GOOGLE_CLOUD_SETUP.md) | Configure Google OAuth step-by-step |
+| [📱 React Native Setup](./REACT_NATIVE_SETUP.md) | Connect your mobile app |
+| [🔑 OAuth with InAppBrowser](./GOOGLE_OAUTH_INAPPBROWSER.md) | Mobile OAuth implementation |
+| [🚢 Deployment Guide](./DEPLOYMENT_GUIDE.md) | Deploy to Render.com |
+
+---
+
 > 📱 **For React Native developers:** See [REACT_NATIVE_SETUP.md](./REACT_NATIVE_SETUP.md) for complete mobile app integration guide
 
 ## 🚀 Features

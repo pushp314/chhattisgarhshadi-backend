@@ -36,7 +36,7 @@ http://10.0.2.2:8080/api/v1/auth/google/callback
 
 For production:
 ```
-https://your-backend.render.com/api/v1/auth/google/callback
+https://chhattisgarhshadi-backend.onrender.com/api/v1/auth/google/callback
 ```
 
 **Important:** Copy the **Client ID** and **Client Secret** → Add to backend `.env`:
@@ -88,7 +88,7 @@ const getBackendUrl = () => {
     });
   } else {
     // Production
-    return 'https://your-backend.render.com';
+    return 'https://chhattisgarhshadi-backend.onrender.com';
   }
 };
 

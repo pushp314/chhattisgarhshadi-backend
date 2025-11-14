@@ -64,7 +64,7 @@ ipconfig
 
 **For Production:**
 ```javascript
-export const API_BASE_URL = 'https://your-backend.render.com/api/v1';
+export const API_BASE_URL = 'https://chhattisgarhshadi-backend.onrender.com/api/v1';
 ```
 
 ### 3. Making API Requests
@@ -441,7 +441,7 @@ pod install
 export const API_BASE_URL = 
   __DEV__ 
     ? 'http://10.0.2.2:8080/api/v1'  // Development
-    : 'https://your-backend.render.com/api/v1';  // Production
+    : 'https://chhattisgarhshadi-backend.onrender.com/api/v1';  // Production
 ```
 
 ## 📚 Useful Resources
