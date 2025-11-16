@@ -21,9 +21,17 @@ router.use('/education', educationRoutes);
 import occupationRoutes from './occupation.routes.js';
 router.use('/occupation', occupationRoutes);
 
-// ADDED: Partner Preference routes
+// Partner Preference routes
 import partnerPreferenceRoutes from './partnerPreference.routes.js';
 router.use('/preference', partnerPreferenceRoutes);
+
+// Shortlist routes
+import shortlistRoutes from './shortlist.routes.js';
+router.use('/shortlist', shortlistRoutes);
+
+// ADDED: Block routes
+import blockRoutes from './block.routes.js';
+router.use('/block', blockRoutes);
 
 // Match routes
 import matchRoutes from './match.routes.js';
