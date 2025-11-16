@@ -13,6 +13,18 @@ router.use('/users', userRoutes);
 import profileRoutes from './profile.routes.js';
 router.use('/profiles', profileRoutes);
 
+// Education routes
+import educationRoutes from './education.routes.js';
+router.use('/education', educationRoutes);
+
+// Occupation routes
+import occupationRoutes from './occupation.routes.js';
+router.use('/occupation', occupationRoutes);
+
+// ADDED: Partner Preference routes
+import partnerPreferenceRoutes from './partnerPreference.routes.js';
+router.use('/preference', partnerPreferenceRoutes);
+
 // Match routes
 import matchRoutes from './match.routes.js';
 router.use('/matches', matchRoutes);
