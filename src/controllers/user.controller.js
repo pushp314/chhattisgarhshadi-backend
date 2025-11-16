@@ -7,8 +7,8 @@ import { HTTP_STATUS } from '../utils/constants.js';
  * Get another user's public profile by ID
  */
 export const getUserById = asyncHandler(async (req, res) => {
-  // Use the new service function for public data
-  const user = await userService.getPublicUserById(req.params.id);
+  // FIX: Pass req.user.id as the second argument for the block check
+  const user = await userService.getPublicUserById(req.params.id, req.user.id);
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, user, 'User retrieved successfully'));
@@ -18,7 +18,7 @@ export const getUserById = asyncHandler(async (req, res) => {
  * Get the currently authenticated user's full profile
  */
 export const getMyProfile = asyncHandler(async (req, res) => {
-  // Use the service function that returns full data for the logged-in user
+  // This is for the user themselves, so no block check needed here.
   const user = await userService.getFullUserById(req.user.id);
   res
     .status(HTTP_STATUS.OK)
@@ -50,8 +50,8 @@ export const deleteMe = asyncHandler(async (req, res) => {
  * Search for other users (public, paginated)
  */
 export const searchUsers = asyncHandler(async (req, res) => {
-  // Pass the validated query object to the service
-  const result = await userService.searchUsers(req.query);
+  // FIX: Pass req.user.id to the service so it can filter blocked users
+  const result = await userService.searchUsers(req.query, req.user.id);
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, result, 'Users retrieved successfully'));

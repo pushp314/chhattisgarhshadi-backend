@@ -4,6 +4,8 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS, ERROR_MESSAGES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
+// ADDED: Import the blockService to check for blocks
+import { blockService } from './block.service.js';
 
 // Define a reusable Prisma select for public-facing user data
 // This prevents leaking sensitive fields like email, phone, googleId, etc.
@@ -35,9 +37,16 @@ export const sendMessage = async (senderId, receiverId, content) => {
       );
     }
 
-    // Check if receiver exists
+    // --- Block Check [ADDED] ---
+    const blockedIdSet = await blockService.getAllBlockedUserIds(senderId);
+    if (blockedIdSet.has(receiverId)) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You cannot send messages to this user');
+    }
+    // --- End Block Check ---
+
+    // Check if receiver exists and is active
     const receiver = await prisma.user.findUnique({
-      where: { id: receiverId },
+      where: { id: receiverId, isActive: true, isBanned: false }, // ADDED: isActive/isBanned
     });
 
     if (!receiver) {
@@ -78,6 +87,16 @@ export const sendMessage = async (senderId, receiverId, content) => {
  */
 export const getConversation = async (userId, otherUserId, query) => {
   try {
+    // --- Block Check [ADDED] ---
+    // Note: We check this *before* loading the conversation.
+    // If you want to allow users to see old messages, remove this check.
+    // But this implementation prevents loading the chat screen entirely.
+    const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
+    if (blockedIdSet.has(otherUserId)) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You cannot view this conversation');
+    }
+    // --- End Block Check ---
+
     const { page, limit, skip } = getPaginationParams(query);
 
     const where = {
@@ -112,6 +131,7 @@ export const getConversation = async (userId, otherUserId, query) => {
     };
   } catch (error) {
     logger.error('Error in getConversation:', error);
+    if (error instanceof ApiError) throw error;
     throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving conversation');
   }
 };
@@ -123,6 +143,10 @@ export const getConversation = async (userId, otherUserId, query) => {
  */
 export const getAllConversations = async (userId) => {
   try {
+    // --- Block Check [ADDED] ---
+    const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
+    // --- End Block Check ---
+
     // Step 1: Get all distinct conversation partners and the timestamp of the last message
     const conversationPartners = await prisma.$queryRaw`
       SELECT "otherUserId", MAX("createdAt") as "lastMessageAt"
@@ -135,11 +159,16 @@ export const getAllConversations = async (userId) => {
       ORDER BY "lastMessageAt" DESC
     `;
 
-    if (conversationPartners.length === 0) {
+    // [MODIFIED] Filter out blocked partners
+    const filteredPartners = conversationPartners.filter(
+      (c) => !blockedIdSet.has(c.otherUserId)
+    );
+
+    if (filteredPartners.length === 0) {
       return [];
     }
 
-    const otherUserIds = conversationPartners.map((c) => c.otherUserId);
+    const otherUserIds = filteredPartners.map((c) => c.otherUserId);
 
     // Step 2: Get all user details for these partners in one query
     const users = await prisma.user.findMany({
@@ -189,7 +218,7 @@ export const getAllConversations = async (userId) => {
     );
 
     // Step 5: Combine all the data
-    const conversationsWithDetails = conversationPartners.map((conv) => {
+    const conversationsWithDetails = filteredPartners.map((conv) => { // [MODIFIED]
       const otherUser = userMap.get(conv.otherUserId);
       const lastMessage = lastMessageMap.get(conv.otherUserId);
       const unreadCount = unreadCountMap.get(conv.otherUserId) || 0;
@@ -218,6 +247,14 @@ export const getAllConversations = async (userId) => {
  */
 export const markMessagesAsRead = async (userId, otherUserId) => {
   try {
+    // --- Block Check [ADDED] ---
+    // Prevent marking as read if user is blocked (as they shouldn't see conversation)
+    const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
+    if (blockedIdSet.has(otherUserId)) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Cannot interact with this user');
+    }
+    // --- End Block Check ---
+
     const result = await prisma.message.updateMany({
       where: {
         senderId: otherUserId,
@@ -234,6 +271,7 @@ export const markMessagesAsRead = async (userId, otherUserId) => {
     return result;
   } catch (error) {
     logger.error('Error in markMessagesAsRead:', error);
+    if (error instanceof ApiError) throw error;
     throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error marking messages as read');
   }
 };
@@ -261,6 +299,8 @@ export const deleteMessage = async (messageId, userId) => {
         'You can only delete your own messages'
       );
     }
+    
+    // No block check needed - user is allowed to delete their *own* messages.
 
     // We will just mark as deleted for now, so the receiver can still see it.
     // To truly delete, use prisma.message.delete()
@@ -289,10 +329,15 @@ export const deleteMessage = async (messageId, userId) => {
  */
 export const getUnreadCount = async (userId) => {
   try {
+    // --- Block Check [ADDED] ---
+    const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
+    // --- End Block Check ---
+
     const count = await prisma.message.count({
       where: {
         receiverId: userId,
         isRead: false,
+        senderId: { notIn: Array.from(blockedIdSet) }, // [MODIFIED]
       },
     });
 

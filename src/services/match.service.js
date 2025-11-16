@@ -3,6 +3,8 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS, ERROR_MESSAGES, MATCH_STATUS } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
+// ADDED: Import the blockService to check for blocks
+import { blockService } from './block.service.js';
 
 // Reusable Prisma select for public-facing user data
 // Prevents leaking sensitive fields like email, phone, googleId, etc.
@@ -32,9 +34,17 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
       );
     }
 
-    // Check if receiver exists and has a profile
+    // --- Block Check [ADDED] ---
+    // Check if either user has blocked the other
+    const blockedIdSet = await blockService.getAllBlockedUserIds(fromUserId);
+    if (blockedIdSet.has(receiverId)) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You cannot interact with this user');
+    }
+    // --- End Block Check ---
+
+    // Check if receiver exists, is active, and has a profile
     const receiver = await prisma.user.findUnique({
-      where: { id: receiverId },
+      where: { id: receiverId, isActive: true, isBanned: false }, // ADDED: isActive/isBanned check
       include: { profile: true },
     });
 
@@ -46,8 +56,6 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
     }
 
     // Check if match request already exists
-    // The @@unique constraint in Prisma schema handles this,
-    // but this provides a friendlier error message.
     const existingMatch = await prisma.matchRequest.findFirst({
       where: {
         OR: [
@@ -113,6 +121,14 @@ export const acceptMatchRequest = async (matchId, userId) => {
       throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Match request is not pending');
     }
 
+    // --- Block Check [ADDED] ---
+    // Check if the user has blocked the sender since receiving the request
+    const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
+    if (blockedIdSet.has(match.senderId)) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You cannot accept a request from a blocked user');
+    }
+    // --- End Block Check ---
+
     const updatedMatch = await prisma.matchRequest.update({
       where: { id: matchId },
       data: { status: MATCH_STATUS.ACCEPTED, respondedAt: new Date() },
@@ -155,6 +171,8 @@ export const rejectMatchRequest = async (matchId, userId) => {
       throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Match request is not pending');
     }
 
+    // No block check needed here - rejecting a request from a blocked user is fine.
+
     const updatedMatch = await prisma.matchRequest.update({
       where: { id: matchId },
       data: { status: MATCH_STATUS.REJECTED, respondedAt: new Date() },
@@ -180,7 +198,13 @@ export const getSentMatchRequests = async (userId, query) => {
     const { page, limit, skip } = getPaginationParams(query);
     const { status } = query;
 
-    const where = { senderId: userId };
+    // --- Block Check [ADDED] ---
+    const blockedIds = Array.from(await blockService.getAllBlockedUserIds(userId));
+
+    const where = { 
+      senderId: userId,
+      receiverId: { notIn: blockedIds }, // Don't show requests sent to blocked users
+    };
     if (status) {
       where.status = status;
     }
@@ -191,8 +215,8 @@ export const getSentMatchRequests = async (userId, query) => {
         skip,
         take: limit,
         include: {
-          receiver: { // Renamed from toUser to match schema
-            select: userPublicSelect, // Use public-safe select
+          receiver: { 
+            select: userPublicSelect, 
           },
         },
         orderBy: {
@@ -225,7 +249,13 @@ export const getReceivedMatchRequests = async (userId, query) => {
     const { page, limit, skip } = getPaginationParams(query);
     const { status } = query;
 
-    const where = { receiverId: userId };
+    // --- Block Check [ADDED] ---
+    const blockedIds = Array.from(await blockService.getAllBlockedUserIds(userId));
+
+    const where = { 
+      receiverId: userId,
+      senderId: { notIn: blockedIds }, // Don't show requests from blocked users
+    };
     if (status) {
       where.status = status;
     }
@@ -236,8 +266,8 @@ export const getReceivedMatchRequests = async (userId, query) => {
         skip,
         take: limit,
         include: {
-          sender: { // Renamed from fromUser to match schema
-            select: userPublicSelect, // Use public-safe select
+          sender: { 
+            select: userPublicSelect,
           },
         },
         orderBy: {
@@ -269,9 +299,17 @@ export const getAcceptedMatches = async (userId, query) => {
   try {
     const { page, limit, skip } = getPaginationParams(query);
 
+    // --- Block Check [ADDED] ---
+    const blockedIds = Array.from(await blockService.getAllBlockedUserIds(userId));
+
     const where = {
       status: MATCH_STATUS.ACCEPTED,
-      OR: [{ senderId: userId }, { receiverId: userId }],
+      // Only find matches where THIS user is involved
+      // AND the OTHER user is NOT in the blocked list.
+      OR: [
+        { senderId: userId, receiverId: { notIn: blockedIds } },
+        { receiverId: userId, senderId: { notIn: blockedIds } }
+      ],
     };
 
     const [matches, total] = await Promise.all([
@@ -340,6 +378,9 @@ export const deleteMatch = async (matchId, userId) => {
         'You can only delete your own matches'
       );
     }
+    
+    // No block check needed, user is allowed to delete a match
+    // even if the other user is blocked.
 
     await prisma.matchRequest.delete({
       where: { id: matchId },

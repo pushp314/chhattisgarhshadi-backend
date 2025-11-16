@@ -3,6 +3,8 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS, ERROR_MESSAGES, USER_ROLES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
+// ADDED: Import the blockService
+import { blockService } from './block.service.js';
 
 // Define a reusable Prisma select for public-facing user data
 // This prevents leaking sensitive fields like email, phone, googleId, etc.
@@ -47,11 +49,23 @@ export const getFullUserById = async (userId) => {
 
 /**
  * Get another user's public-safe details
- * @param {string} userId - User ID
+ * @param {number} userId - ID of the user to get
+ * @param {number} currentUserId - ID of the user making the request
  * @returns {Promise<Object>}
  */
-export const getPublicUserById = async (userId) => {
+export const getPublicUserById = async (userId, currentUserId) => {
   try {
+    // --- Block Check [ADDED] ---
+    if (currentUserId) {
+      const blockedIdSet = await blockService.getAllBlockedUserIds(currentUserId);
+      // Check if the user being requested is in the block list
+      if (blockedIdSet.has(userId)) {
+        // Obscure the reason - just say they don't exist
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
+      }
+    }
+    // --- End Block Check ---
+
     const user = await prisma.user.findUnique({
       where: { id: userId, isActive: true },
       select: userPublicSelect, // Use the public-safe select
@@ -64,10 +78,8 @@ export const getPublicUserById = async (userId) => {
     return user;
   } catch (error) {
     logger.error('Error in getPublicUserById:', error);
-    if (!(error instanceof ApiError)) {
-      throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving user data');
-    }
-    throw error;
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving user data');
   }
 };
 
@@ -139,9 +151,10 @@ export const deleteUser = async (userId) => {
 /**
  * Search users (public, paginated)
  * @param {Object} query - Query parameters (pre-validated)
+ * @param {number} [currentUserId] - The ID of the user performing the search (optional)
  * @returns {Promise<Object>}
  */
-export const searchUsers = async (query) => {
+export const searchUsers = async (query, currentUserId = null) => {
   try {
     const { page, limit, skip } = getPaginationParams(query);
     const { search, role } = query;
@@ -149,6 +162,15 @@ export const searchUsers = async (query) => {
     const where = {
       isActive: true, // Only show active users
     };
+
+    // --- Block Check [ADDED] ---
+    if (currentUserId) {
+      const blockedIds = Array.from(await blockService.getAllBlockedUserIds(currentUserId));
+      blockedIds.push(currentUserId); // Add self to block list
+      
+      where.id = { notIn: blockedIds };
+    }
+    // --- End Block Check ---
 
     if (role) {
       where.role = role;

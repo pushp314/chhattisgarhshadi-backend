@@ -66,7 +66,8 @@ export const deleteMyProfile = asyncHandler(async (req, res) => {
  * Search profiles
  */
 export const searchProfiles = asyncHandler(async (req, res) => {
-  const result = await profileService.searchProfiles(req.query);
+  // FIX: Pass req.user.id to the service so it can filter blocked users
+  const result = await profileService.searchProfiles(req.query, req.user.id);
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, result, 'Profiles retrieved successfully'));

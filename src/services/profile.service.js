@@ -10,6 +10,8 @@ import { updateProfileCompleteness } from '../utils/profile.helpers.js';
 import { logger } from '../config/logger.js';
 // Import uploadService to delete S3 objects
 import { uploadService } from './upload.service.js';
+// ADDED: Import blockService to filter searches
+import { blockService } from './block.service.js';
 
 /**
  * Create user profile
@@ -155,9 +157,10 @@ export const deleteProfile = async (userId) => {
 /**
  * Search profiles with filters
  * @param {Object} query - Query parameters (validated)
+ * @param {number} [currentUserId] - The ID of the user performing the search (optional)
  * @returns {Promise<Object>}
  */
-export const searchProfiles = async (query) => {
+export const searchProfiles = async (query, currentUserId = null) => {
   try {
     const { page, limit, skip } = getPaginationParams(query);
     const {
@@ -169,22 +172,37 @@ export const searchProfiles = async (query) => {
       maritalStatus,
       minHeight,
       maxHeight,
+      // ADDED: Get new filters from validation
+      nativeDistrict,
+      speaksChhattisgarhi
     } = query;
 
     const where = {
       isPublished: true, // Only search published profiles
     };
 
+    // --- Block Check [ADDED] ---
+    // If we know who is searching, filter out blocked users and themselves
+    if (currentUserId) {
+      const blockedIds = Array.from(await blockService.getAllBlockedUserIds(currentUserId));
+      blockedIds.push(currentUserId); // Add self to block list
+      
+      where.userId = { notIn: blockedIds };
+    }
+    // --- End Block Check ---
+
     if (gender) where.gender = gender;
     if (maritalStatus) where.maritalStatus = maritalStatus;
+    
+    // ADDED: Chhattisgarh-specific filters
+    if (nativeDistrict) where.nativeDistrict = { equals: nativeDistrict, mode: 'insensitive' };
+    if (speaksChhattisgarhi !== undefined) where.speaksChhattisgarhi = speaksChhattisgarhi;
 
     // PERFORMANCE FIX: Use 'in' for enums, not 'contains'
     if (religions && religions.length > 0) {
       where.religion = { in: religions };
     }
     
-    // PERFORMANCE NOTE: 'in' is better, but 'contains' is kept for flexibility
-    // For true performance, use Full-Text Search on an indexed column.
     if (castes && castes.length > 0) {
       where.caste = { in: castes, mode: 'insensitive' };
     }
@@ -200,6 +218,7 @@ export const searchProfiles = async (query) => {
         where.dateOfBirth.lte = maxDOB;
       }
       if (maxAge) {
+        // Decrement maxAge by 1 year to get the correct start range
         const minDOB = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
         where.dateOfBirth.gte = minDOB;
       }
@@ -216,7 +235,7 @@ export const searchProfiles = async (query) => {
         },
         orderBy: {
           user: {
-            role: 'desc', // Show PREMIUM_USER first (if you change role logic)
+            role: 'desc', // Show PREMIUM_USER first
           },
         },
       }),
@@ -237,6 +256,7 @@ export const searchProfiles = async (query) => {
     };
   } catch (error) {
     logger.error('Error in searchProfiles:', error);
+    if (error instanceof ApiError) throw error;
     throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error searching profiles');
   }
 };
@@ -266,7 +286,7 @@ export const addPhoto = async (userId, mediaData, mediaType) => {
         type: mediaType,
         url: mediaData.url,
         thumbnailUrl: mediaData.thumbnailUrl,
-        fileName: mediaData.filename,
+        fileName: mediaData.filename, // Changed from fileName
         fileSize: mediaData.size,
         mimeType: mediaData.mimetype,
         // You might want to add logic for isDefault
@@ -310,13 +330,13 @@ export const deletePhoto = async (userId, mediaId) => {
     // We need the key. Assuming URL is the full S3 URL
     const key = uploadService.extractKeyFromUrl(media.url);
     if (key) {
-      await uploadService.deleteFromS3(key);
+      await uploadService.deleteFile(key); // FIX: Changed to deleteFile
     }
     // Also delete thumbnail if it exists
     if (media.thumbnailUrl) {
       const thumbKey = uploadService.extractKeyFromUrl(media.thumbnailUrl);
       if (thumbKey) {
-        await uploadService.deleteFromS3(thumbKey);
+        await uploadService.deleteFile(thumbKey); // FIX: Changed to deleteFile
       }
     }
 
