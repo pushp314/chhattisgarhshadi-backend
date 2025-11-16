@@ -10,23 +10,43 @@ import {
 const router = Router();
 
 /**
- * @route   POST /api/payments/webhook
- * @desc    Handle Razorpay webhook
- * @access  Public (secured by Razorpay signature)
+ * @swagger
+ * /api/v1/payments/webhook:
+ *   post:
+ *     summary: Handle Razorpay webhook
+ *     tags: [Payments]
+ *     description: Secured by Razorpay signature
+ *     responses:
+ *       200:
+ *         description: Webhook handled successfully
  */
-// NOTE: This route MUST come before `express.json()` in your main app.js
-// or Razorpay's body-parser will conflict.
-// If you use express.json() globally, you must use a raw body parser for this route.
-// For now, we assume it's correctly placed.
 router.post('/webhook', paymentController.handleWebhook);
 
 // All other routes require authentication
 router.use(authenticate);
 
 /**
- * @route   POST /api/payments/orders
- * @desc    Create payment order
- * @access  Private
+ * @swagger
+ * /api/v1/payments/orders:
+ *   post:
+ *     summary: Create payment order
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - planId
+ *             properties:
+ *               planId:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Payment order created successfully
  */
 router.post(
   '/orders',
@@ -35,9 +55,33 @@ router.post(
 );
 
 /**
- * @route   POST /api/payments/verify
- * @desc    Verify payment (for client-side confirmation)
- * @access  Private
+ * @swagger
+ * /api/v1/payments/verify:
+ *   post:
+ *     summary: Verify payment
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - razorpay_order_id
+ *               - razorpay_payment_id
+ *               - razorpay_signature
+ *             properties:
+ *               razorpay_order_id:
+ *                 type: string
+ *               razorpay_payment_id:
+ *                 type: string
+ *               razorpay_signature:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Payment verified successfully
  */
 router.post(
   '/verify',
@@ -46,16 +90,36 @@ router.post(
 );
 
 /**
- * @route   GET /api/payments/me
- * @desc    Get my payments
- * @access  Private
+ * @swagger
+ * /api/v1/payments/me:
+ *   get:
+ *     summary: Get my payments
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Payments retrieved successfully
  */
 router.get('/me', paymentController.getMyPayments);
 
 /**
- * @route   GET /api/payments/:paymentId
- * @desc    Get payment by ID
- * @access  Private
+ * @swagger
+ * /api/v1/payments/{paymentId}:
+ *   get:
+ *     summary: Get payment by ID
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: paymentId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Payment retrieved successfully
  */
 router.get(
   '/:paymentId',

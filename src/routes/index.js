@@ -37,24 +37,69 @@ router.use('/uploads', uploadRoutes);
 import adminRoutes from './admin.routes.js';
 router.use('/admin', adminRoutes);
 
-// Health check endpoint
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: '✅ API is healthy and running',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
-    version: '1.0.0',
-    services: {
-      database: '✅ Connected',
-      socket: '✅ Running',
-      firebase: process.env.FIREBASE_PROJECT_ID ? '✅ Configured' : '⚠️ Not configured',
-      aws: process.env.AWS_ACCESS_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
-      msg91: process.env.MSG91_AUTH_KEY ? '✅ Configured' : '⚠️ Not configured',
-      razorpay: process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
-    },
-  });
+// Health check endpoint with detailed status
+import prisma from '../config/database.js';
+
+router.get('/health', async (req, res) => {
+  try {
+    // Test database connection
+    const dbStart = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    const dbLatency = Date.now() - dbStart;
+
+    res.json({
+      success: true,
+      status: 'healthy',
+      message: '✅ API is healthy and running',
+      timestamp: new Date().toISOString(),
+      uptime: Math.floor(process.uptime()),
+      environment: process.env.NODE_ENV || 'development',
+      version: '1.0.0',
+      services: {
+        database: {
+          status: '✅ Connected',
+          latency: `${dbLatency}ms`,
+          type: 'PostgreSQL (Neon)',
+        },
+        socket: {
+          status: '✅ Running',
+          service: 'Socket.io',
+        },
+        firebase: {
+          status: process.env.FIREBASE_PROJECT_ID ? '✅ Configured' : '⚠️ Not configured',
+          service: 'FCM Push Notifications',
+        },
+        aws: {
+          status: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_ACCESS_KEY_ID !== 'your-aws-access-key-id' 
+            ? '✅ Configured' 
+            : '⚠️ Not configured',
+          service: 'S3 File Storage',
+        },
+        msg91: {
+          status: process.env.MSG91_AUTH_KEY && process.env.MSG91_AUTH_KEY !== 'your-msg91-auth-key'
+            ? '✅ Configured' 
+            : '⚠️ Not configured',
+          service: 'SMS OTP',
+        },
+        razorpay: {
+          status: process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
+          service: 'Payment Gateway',
+        },
+      },
+      memory: {
+        usage: `${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+        total: `${Math.round(process.memoryUsage().heapTotal / 1024 / 1024)}MB`,
+      },
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      status: 'unhealthy',
+      message: '❌ Service degraded',
+      error: error.message,
+      timestamp: new Date().toISOString(),
+    });
+  }
 });
 
 export default router;

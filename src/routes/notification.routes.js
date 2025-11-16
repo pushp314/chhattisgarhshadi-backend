@@ -13,41 +13,86 @@ const router = Router();
 router.use(authenticate);
 
 /**
- * @route   GET /api/notifications
- * @desc    Get my notifications (paginated)
- * @access  Private
+ * @swagger
+ * /api/v1/notifications:
+ *   get:
+ *     summary: Get my notifications (paginated)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Notifications retrieved successfully
+ *   delete:
+ *     summary: Delete all notifications
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications deleted successfully
  */
 router.get(
   '/',
   validate(getNotificationsQuerySchema),
   notificationController.getMyNotifications
 );
+router.delete('/', notificationController.deleteAllNotifications);
 
 /**
- * @route   GET /api/notifications/unread-count
- * @desc    Get unread notification count
- * @access  Private
+ * @swagger
+ * /api/v1/notifications/unread-count:
+ *   get:
+ *     summary: Get unread notification count
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread count retrieved successfully
  */
 router.get('/unread-count', notificationController.getUnreadCount);
 
 /**
- * @route   PUT /api/notifications/read-all
- * @desc    Mark all notifications as read
- * @access  Private
+ * @swagger
+ * /api/v1/notifications/read-all:
+ *   put:
+ *     summary: Mark all notifications as read
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
  */
 router.put('/read-all', notificationController.markAllAsRead);
 
 /**
- * @route   DELETE /api/notifications
- * @desc    Delete all notifications
- * @access  Private
- */
-router.delete('/', notificationController.deleteAllNotifications);
-
-/**
- * @route   PUT /api/notifications/:notificationId/read
- * @desc    Mark a single notification as read
- * @access  Private
+ * @swagger
+ * /api/v1/notifications/{notificationId}/read:
+ *   put:
+ *     summary: Mark notification as read
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification marked as read
  */
 router.put(
   '/:notificationId/read',
@@ -56,9 +101,22 @@ router.put(
 );
 
 /**
- * @route   DELETE /api/notifications/:notificationId
- * @desc    Delete a single notification
- * @access  Private
+ * @swagger
+ * /api/v1/notifications/{notificationId}:
+ *   delete:
+ *     summary: Delete notification
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Notification deleted successfully
  */
 router.delete(
   '/:notificationId',

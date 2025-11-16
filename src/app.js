@@ -3,11 +3,17 @@ import helmet from 'helmet';
 import cors from 'cors';
 import compression from 'compression';
 import morgan from 'morgan';
+import mongoSanitize from 'express-mongo-sanitize';
+import hpp from 'hpp';
 
 import routes from './routes/index.js';
 import { logger } from './config/logger.js';
+import requestIdMiddleware from './middleware/requestId.middleware.js';
 
 const app = express();
+
+// Request ID tracking (for debugging and logging)
+app.use(requestIdMiddleware);
 
 // Security (relaxed for development)
 if (process.env.NODE_ENV === 'production') {
@@ -19,25 +25,58 @@ if (process.env.NODE_ENV === 'production') {
   }));
 }
 
-// CORS (allow all in development)
-app.use(cors({
-  origin: process.env.CORS_ORIGIN || '*',
+// CORS (allow all in development, restrict in production)
+const corsOptions = {
+  origin: process.env.NODE_ENV === 'production' 
+    ? (process.env.CORS_ORIGIN || '*').split(',').map(o => o.trim())
+    : '*',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400, // 24 hours - cache preflight requests
+};
+app.use(cors(corsOptions));
+
+// Parsers (with size limits to prevent DoS)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Data sanitization against NoSQL injection
+app.use(mongoSanitize({
+  replaceWith: '_',
+  onSanitize: ({ req, key }) => {
+    logger.warn(`Sanitized request from ${req.ip}:`, key);
+  }
 }));
 
-// Parsers
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Prevent HTTP Parameter Pollution
+app.use(hpp({
+  whitelist: ['sort', 'filter', 'page', 'limit'] // Allow these query params to be arrays
+}));
 
-// Compression
-app.use(compression());
+// Compression (only for production, responses > 1kb)
+app.use(compression({
+  level: 6, // Balance between speed and compression
+  threshold: 1024, // Only compress responses > 1kb
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) {
+      return false;
+    }
+    return compression.filter(req, res);
+  }
+}));
 
 // Logging
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
+
+// Swagger API Documentation
+import { specs, swaggerUi } from './config/swagger.js';
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'Chhattisgarh Shadi API Docs',
+}));
 
 // Root route - Welcome message
 app.get('/', (req, res) => {
@@ -49,13 +88,14 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     endpoints: {
       health: '/api/v1/health',
+      docs: '/api-docs',
       auth: '/api/v1/auth',
       users: '/api/v1/users',
       profiles: '/api/v1/profiles',
       matches: '/api/v1/matches',
       messages: '/api/v1/messages',
     },
-    documentation: 'https://github.com/pushp314/chhattisgarhshadi-backend',
+    documentation: 'Visit /api-docs for interactive API documentation',
   });
 });
 

@@ -14,37 +14,101 @@ const router = Router();
 router.use(authenticate);
 
 /**
- * @route   GET /api/users/me
- * @desc    Get current user profile
- * @access  Private
+ * @swagger
+ * /api/v1/users/me:
+ *   get:
+ *     summary: Get current user profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
  */
 router.get('/me', userController.getMyProfile);
 
 /**
- * @route   PUT /api/users/me
- * @desc    Update current user's non-critical data
- * @access  Private
+ * @swagger
+ * /api/v1/users/me:
+ *   put:
+ *     summary: Update current user
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               preferredLanguage:
+ *                 type: string
+ *                 enum: [EN, HI, CG]
+ *     responses:
+ *       200:
+ *         description: User updated successfully
  */
 router.put('/me', validate(updateMeSchema), userController.updateMe);
 
 /**
- * @route   DELETE /api/users/me
- * @desc    Delete current user account (Soft Delete)
- * @access  Private
+ * @swagger
+ * /api/v1/users/me:
+ *   delete:
+ *     summary: Delete current user account (Soft Delete)
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Account deleted successfully
  */
 router.delete('/me', userController.deleteMe);
 
 /**
- * @route   GET /api/users/search
- * @desc    Search other users (public, paginated)
- * @access  Private
+ * @swagger
+ * /api/v1/users/search:
+ *   get:
+ *     summary: Search users
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
  */
 router.get('/search', validate(searchUsersSchema), userController.searchUsers);
 
 /**
- * @route   GET /api/users/:id
- * @desc    Get another user's public profile by ID
- * @access  Private
+ * @swagger
+ * /api/v1/users/{id}:
+ *   get:
+ *     summary: Get user by ID
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: User retrieved successfully
  */
 router.get('/:id', validate(objectIdSchema), userController.getUserById);
 

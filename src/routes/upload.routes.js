@@ -14,39 +14,92 @@ const router = Router();
 router.use(authenticate);
 
 /**
- * @route   POST /api/uploads/profile-photo
- * @desc    Upload single profile photo
- * @access  Private
+ * @swagger
+ * /api/v1/uploads/profile-photo:
+ *   post:
+ *     summary: Upload single profile photo
+ *     tags: [Uploads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               photo:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Photo uploaded successfully
  */
 router.post(
   '/profile-photo',
-  uploadProfilePhoto, // Multer middleware
-  handleMulterError, // Multer error handler
-  uploadController.uploadProfilePhoto // Controller
+  uploadProfilePhoto,
+  handleMulterError,
+  uploadController.uploadProfilePhoto
 );
 
 /**
- * @route   POST /api/uploads/profile-photos
- * @desc    Upload multiple profile photos (up to 6)
- * @access  Private
+ * @swagger
+ * /api/v1/uploads/profile-photos:
+ *   post:
+ *     summary: Upload multiple profile photos (up to 6)
+ *     tags: [Uploads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               photos:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Photos uploaded successfully
  */
 router.post(
   '/profile-photos',
-  uploadProfilePhotos, // Multer middleware
-  handleMulterError, // Multer error handler
-  uploadController.uploadProfilePhotos // Controller
+  uploadProfilePhotos,
+  handleMulterError,
+  uploadController.uploadProfilePhotos
 );
 
 /**
- * @route   POST /api/uploads/id-proof
- * @desc    Upload ID proof (PDF or image)
- * @access  Private
+ * @swagger
+ * /api/v1/uploads/id-proof:
+ *   post:
+ *     summary: Upload ID proof (PDF or image)
+ *     tags: [Uploads]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               document:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: ID proof uploaded successfully
  */
 router.post(
   '/id-proof',
-  uploadDocument, // Multer middleware
-  handleMulterError, // Multer error handler
-  uploadController.uploadIdProof // Controller
+  uploadDocument,
+  handleMulterError,
+  uploadController.uploadIdProof
 );
 
 //

@@ -3,13 +3,25 @@ import { logger } from './logger.js';
 
 const prismaClientSingleton = () => {
   return new PrismaClient({
-    log: [
-      { level: 'error', emit: 'event' },
-      { level: 'warn', emit: 'event' },
-    ],
+    log: process.env.NODE_ENV === 'development' 
+      ? [
+          { level: 'error', emit: 'event' },
+          { level: 'warn', emit: 'event' },
+          { level: 'query', emit: 'event' }, // Log slow queries in dev
+        ]
+      : [
+          { level: 'error', emit: 'event' },
+          { level: 'warn', emit: 'event' },
+        ],
     datasources: {
       db: {
         url: process.env.DATABASE_URL,
+      },
+    },
+    // Connection pooling (optimized for Neon PostgreSQL)
+    __internal: {
+      engine: {
+        connection_limit: process.env.DATABASE_CONNECTION_LIMIT || 10,
       },
     },
   });
@@ -31,6 +43,15 @@ prisma.$on('error', (e) => {
 prisma.$on('warn', (e) => {
   logger.warn('Prisma warning:', e);
 });
+
+// Log slow queries in development
+if (process.env.NODE_ENV === 'development') {
+  prisma.$on('query', (e) => {
+    if (e.duration > 1000) { // Log queries taking > 1 second
+      logger.warn(`Slow query detected (${e.duration}ms):`, e.query);
+    }
+  });
+}
 
 // Connection test
 prisma.$connect()

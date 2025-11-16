@@ -15,30 +15,78 @@ const router = Router();
 router.use(authenticate, requireCompleteProfile);
 
 /**
- * @route   POST /api/messages
- * @desc    Send message
- * @access  Private
+ * @swagger
+ * /api/v1/messages:
+ *   post:
+ *     summary: Send message
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - receiverId
+ *               - content
+ *             properties:
+ *               receiverId:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Message sent successfully
  */
 router.post('/', validate(sendMessageSchema), messageController.sendMessage);
 
 /**
- * @route   GET /api/messages/conversations
- * @desc    Get all conversations
- * @access  Private
+ * @swagger
+ * /api/v1/messages/conversations:
+ *   get:
+ *     summary: Get all conversations
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Conversations retrieved successfully
  */
 router.get('/conversations', messageController.getAllConversations);
 
 /**
- * @route   GET /api/messages/unread-count
- * @desc    Get unread message count
- * @access  Private
+ * @swagger
+ * /api/v1/messages/unread-count:
+ *   get:
+ *     summary: Get unread message count
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread count retrieved successfully
  */
 router.get('/unread-count', messageController.getUnreadCount);
 
 /**
- * @route   GET /api/messages/:userId
- * @desc    Get conversation with a user
- * @access  Private
+ * @swagger
+ * /api/v1/messages/{userId}:
+ *   get:
+ *     summary: Get conversation with a user
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Conversation retrieved successfully
  */
 router.get(
   '/:userId',
@@ -47,9 +95,22 @@ router.get(
 );
 
 /**
- * @route   PUT /api/messages/:userId/read
- * @desc    Mark messages as read
- * @access  Private
+ * @swagger
+ * /api/v1/messages/{userId}/read:
+ *   put:
+ *     summary: Mark messages as read
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Messages marked as read
  */
 router.put(
   '/:userId/read',
@@ -58,9 +119,22 @@ router.put(
 );
 
 /**
- * @route   DELETE /api/messages/:messageId
- * @desc    Delete message
- * @access  Private
+ * @swagger
+ * /api/v1/messages/{messageId}:
+ *   delete:
+ *     summary: Delete message
+ *     tags: [Messages]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: messageId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Message deleted successfully
  */
 router.delete(
   '/:messageId',

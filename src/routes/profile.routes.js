@@ -16,37 +16,97 @@ const router = Router();
 router.use(authenticate);
 
 /**
- * @route   POST /api/profiles
- * @desc    Create profile
- * @access  Private
+ * @swagger
+ * /api/v1/profiles:
+ *   post:
+ *     summary: Create profile
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - firstName
+ *               - lastName
+ *               - dateOfBirth
+ *               - gender
+ *             properties:
+ *               firstName:
+ *                 type: string
+ *               lastName:
+ *                 type: string
+ *               dateOfBirth:
+ *                 type: string
+ *                 format: date
+ *               gender:
+ *                 type: string
+ *                 enum: [MALE, FEMALE, OTHER]
+ *     responses:
+ *       201:
+ *         description: Profile created successfully
  */
 router.post('/', validate(createProfileSchema), profileController.createProfile);
 
 /**
- * @route   GET /api/profiles/me
- * @desc    Get my profile
- * @access  Private
+ * @swagger
+ * /api/v1/profiles/me:
+ *   get:
+ *     summary: Get my profile
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile retrieved successfully
+ *   put:
+ *     summary: Update my profile
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *   delete:
+ *     summary: Delete my profile
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Profile deleted successfully
  */
 router.get('/me', profileController.getMyProfile);
-
-/**
- * @route   PUT /api/profiles/me
- * @desc    Update my profile
- * @access  Private
- */
 router.put('/me', validate(updateProfileSchema), profileController.updateMyProfile);
-
-/**
- * @route   DELETE /api/profiles/me
- * @desc    Delete my profile
- * @access  Private
- */
 router.delete('/me', profileController.deleteMyProfile);
 
 /**
- * @route   GET /api/profiles/search
- * @desc    Search profiles
- * @access  Private (requires complete profile)
+ * @swagger
+ * /api/v1/profiles/search:
+ *   get:
+ *     summary: Search profiles
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: gender
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: ageMin
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: ageMax
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Profiles retrieved successfully
  */
 router.get(
   '/search',
@@ -56,9 +116,22 @@ router.get(
 );
 
 /**
- * @route   DELETE /api/profiles/photos/:mediaId
- * @desc    Remove a photo from my profile
- * @access  Private
+ * @swagger
+ * /api/v1/profiles/photos/{mediaId}:
+ *   delete:
+ *     summary: Delete profile photo
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: mediaId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Photo deleted successfully
  */
 router.delete(
   '/photos/:mediaId',
@@ -67,9 +140,22 @@ router.delete(
 );
 
 /**
- * @route   GET /api/profiles/:userId
- * @desc    Get profile by user ID
- * @access  Private (requires complete profile)
+ * @swagger
+ * /api/v1/profiles/{userId}:
+ *   get:
+ *     summary: Get profile by user ID
+ *     tags: [Profiles]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Profile retrieved successfully
  */
 router.get(
   '/:userId',

@@ -14,23 +14,57 @@ const router = Router();
 router.use(authenticate, requireCompleteProfile);
 
 /**
- * @route   POST /api/matches
- * @desc    Send match request
- * @access  Private
+ * @swagger
+ * /api/v1/matches:
+ *   post:
+ *     summary: Send match request
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - receiverId
+ *             properties:
+ *               receiverId:
+ *                 type: string
+ *               message:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Match request sent successfully
  */
 router.post('/', validate(sendMatchRequestSchema), matchController.sendMatchRequest);
 
 /**
- * @route   GET /api/matches/sent
- * @desc    Get sent match requests
- * @access  Private
+ * @swagger
+ * /api/v1/matches/sent:
+ *   get:
+ *     summary: Get sent match requests
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sent match requests retrieved successfully
  */
 router.get('/sent', validate(getMatchesQuerySchema), matchController.getSentMatchRequests);
 
 /**
- * @route   GET /api/matches/received
- * @desc    Get received match requests
- * @access  Private
+ * @swagger
+ * /api/v1/matches/received:
+ *   get:
+ *     summary: Get received match requests
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Received match requests retrieved successfully
  */
 router.get(
   '/received',
@@ -39,9 +73,16 @@ router.get(
 );
 
 /**
- * @route   GET /api/matches/accepted
- * @desc    Get accepted matches
- * @access  Private
+ * @swagger
+ * /api/v1/matches/accepted:
+ *   get:
+ *     summary: Get accepted matches
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Accepted matches retrieved successfully
  */
 router.get(
   '/accepted',
@@ -50,9 +91,22 @@ router.get(
 );
 
 /**
- * @route   POST /api/matches/:matchId/accept
- * @desc    Accept match request
- * @access  Private
+ * @swagger
+ * /api/v1/matches/{matchId}/accept:
+ *   post:
+ *     summary: Accept match request
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: matchId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Match request accepted
  */
 router.post(
   '/:matchId/accept',
@@ -61,9 +115,22 @@ router.post(
 );
 
 /**
- * @route   POST /api/matches/:matchId/reject
- * @desc    Reject match request
- * @access  Private
+ * @swagger
+ * /api/v1/matches/{matchId}/reject:
+ *   post:
+ *     summary: Reject match request
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: matchId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Match request rejected
  */
 router.post(
   '/:matchId/reject',
@@ -72,9 +139,22 @@ router.post(
 );
 
 /**
- * @route   DELETE /api/matches/:matchId
- * @desc    Delete/cancel match
- * @access  Private
+ * @swagger
+ * /api/v1/matches/{matchId}:
+ *   delete:
+ *     summary: Delete/cancel match
+ *     tags: [Matches]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: matchId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Match deleted successfully
  */
 router.delete(
   '/:matchId',
