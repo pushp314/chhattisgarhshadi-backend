@@ -359,7 +359,6 @@ export const PRIVACY_LEVEL = {
 };
 
 
-// ... (all your other exports like REPORT_REASON, PROFILE_VISIBILITY, etc.)
 
 /**
  * Communication Privacy Options (for receiving requests)
@@ -380,7 +379,6 @@ export const MESSAGE_PRIVACY = {
   MATCHED_ONLY: 'MATCHED_ONLY',
 };
 
-// ... (all your other exports like REPORT_REASON, COMMUNICATION_PRIVACY, etc.)
 
 /**
  * Photo Visibility Options
@@ -432,4 +430,40 @@ export const CONTACT_REQUEST_STATUS = {
   PENDING: 'PENDING',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
+};
+
+
+/**
+ * Report Status (Matches Prisma Enum)
+ * ADDED
+ */
+export const REPORT_STATUS = {
+  PENDING: 'PENDING',
+  UNDER_REVIEW: 'UNDER_REVIEW',
+  RESOLVED: 'RESOLVED',
+  DISMISSED: 'DISMISSED',
+  ESCALATED: 'ESCALATED',
+};
+
+
+/**
+ * Photo View Request Status Options
+ * ADDED
+ */
+export const PHOTO_REQUEST_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+};
+
+
+/**
+ * Agent Status (Matches Prisma Enum)
+ * ADDED
+ */
+export const AGENT_STATUS = {
+  ACTIVE: 'ACTIVE',
+  INACTIVE: 'INACTIVE',
+  SUSPENDED: 'SUSPENDED',
+  TERMINATED: 'TERMINATED',
 };

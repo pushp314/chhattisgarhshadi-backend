@@ -41,9 +41,13 @@ router.use('/report', reportRoutes);
 import profileViewRoutes from './profileView.routes.js';
 router.use('/view', profileViewRoutes);
 
-// ADDED: Contact Request routes
+// Contact Request routes
 import contactRequestRoutes from './contactRequest.routes.js';
 router.use('/contact-request', contactRequestRoutes);
+
+// ADDED: Photo View Request routes
+import photoRequestRoutes from './photoRequest.routes.js';
+router.use('/photo-request', photoRequestRoutes);
 
 // Match routes
 import matchRoutes from './match.routes.js';

@@ -7,102 +7,84 @@ import {
   recentQuerySchema,
   userIdParamSchema,
   updateUserRoleSchema,
+  getReportsSchema,
+  reportIdParamSchema,
+  updateReportSchema,
 } from '../validation/admin.validation.js';
+
+// ADDED: Import new agent routes
+import agentRoutes from './agent.routes.js';
 
 const router = Router();
 
 // All routes require authentication and admin role
 router.use(authenticate, requireAdmin);
 
-/**
- * @route   GET /api/admin/users
- * @desc    Get all users
- * @access  Admin
- */
+// --- User Management ---
 router.get(
   '/users',
   validate(paginationQuerySchema),
   adminController.getAllUsers
 );
-
-/**
- * @route   GET /api/admin/users/recent
- * @desc    Get recent users
- * @access  Admin
- */
 router.get(
   '/users/recent',
   validate(recentQuerySchema),
   adminController.getRecentUsers
 );
-
-/**
- * @route   GET /api/admin/users/:userId
- * @desc    Get user by ID
- * @access  Admin
- */
 router.get(
   '/users/:userId',
   validate(userIdParamSchema),
   adminController.getUserById
 );
-
-/**
- * @route   PUT /api/admin/users/:userId/role
- * @desc    Update user role
- * @access  Admin
- */
 router.put(
   '/users/:userId/role',
   validate(updateUserRoleSchema),
   adminController.updateUserRole
 );
-
-/**
- * @route   DELETE /api/admin/users/:userId
- * @desc    Delete user
- * @access  Admin
- */
 router.delete(
   '/users/:userId',
   validate(userIdParamSchema),
   adminController.deleteUser
 );
 
-/**
- * @route   GET /api/admin/profiles
- * @desc    Get all profiles
- * @access  Admin
- */
+// --- Profile Management ---
 router.get(
   '/profiles',
   validate(paginationQuerySchema),
   adminController.getAllProfiles
 );
 
-/**
- * @route   GET /api/admin/matches/recent
- * @desc    Get recent matches
- * @access  Admin
- */
+// --- Match Management ---
 router.get(
   '/matches/recent',
   validate(recentQuerySchema),
   adminController.getRecentMatches
 );
 
-/**
- * @route   GET /api/admin/stats
- * @desc    Get dashboard statistics
- * @access  Admin
- */
+// --- Dashboard & System ---
 router.get('/stats', adminController.getDashboardStats);
-
-/**
- * @route   POST /api/admin/cleanup/tokens
- * @desc    Clean up expired tokens
- * @access  Admin
- */
 router.post('/cleanup/tokens', adminController.cleanupExpiredTokens);
+
+// --- Report Management ---
+router.get(
+  '/reports',
+  validate(getReportsSchema),
+  adminController.getReports
+);
+router.get(
+  '/reports/:id',
+  validate(reportIdParamSchema),
+  adminController.getReportById
+);
+router.put(
+  '/reports/:id',
+  validate(updateReportSchema),
+  adminController.updateReport
+);
+
+// --- ADDED: Agent Management ---
+// All routes in agentRoutes will be prefixed with /admin/agents
+// and will be protected by the requireAdmin middleware
+router.use('/agents', agentRoutes);
 
 export default router;
