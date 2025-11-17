@@ -9,35 +9,7 @@ const router = Router();
 // All report routes require authentications
 router.use(authenticate, requireCompleteProfile);
 
-/**
- * @swagger
- * /api/v1/report:
- * post:
- * summary: Report a user
- * tags: [Report]
- * security:
- * - bearerAuth: []
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * type: object
- * properties:
- * reportedUserId:
- * type: integer
- * reason:
- * type: string
- * enum: [FAKE_PROFILE, INAPPROPRIATE_CONTENT, HARASSMENT, SCAM, SPAM, UNDERAGE, IMPERSONATION, PRIVACY_VIOLATION, OTHER]
- * description:
- * type: string
- * evidence:
- * type: string
- * description: Optional JSON string of evidence URLs
- * responses:
- * 201:
- * description: Report submitted successfully
- */
+
 router
   .route('/')
   .post(validate(createReportSchema), reportController.createReport);

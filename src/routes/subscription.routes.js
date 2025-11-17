@@ -11,27 +11,6 @@ const router = Router();
 // want to see plans before finishing their profile.
 router.use(authenticate);
 
-/**
- * @swagger
- * /api/v1/plans:
- * get:
- * summary: Get all active subscription plans
- * tags: [Subscription Plans]
- * security:
- * - bearerAuth: []
- * parameters:
- * - in: query
- * name: page
- * schema:
- * type: integer
- * - in: query
- * name: limit
- * schema:
- * type: integer
- * responses:
- * 200:
- * description: A paginated list of active subscription plans
- */
 router
   .route('/')
   .get(validate(getPlansSchema), subscriptionController.getActivePlans);

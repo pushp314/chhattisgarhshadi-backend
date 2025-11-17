@@ -11,44 +11,7 @@ const router = Router();
 // All routes require authentication
 router.use(authenticate);
 
-/**
- * @swagger
- * /api/v1/photos/{mediaId}/privacy:
- * get:
- * summary: Get privacy settings for a specific photo
- * tags: [Media]
- * security:
- * - bearerAuth: []
- * parameters:
- * - in: path
- * name: mediaId
- * required: true
- * schema:
- * type: integer
- * responses:
- * 200:
- * description: Photo privacy settings retrieved
- * put:
- * summary: Update privacy settings for a specific photo
- * tags: [Media]
- * security:
- * - bearerAuth: []
- * parameters:
- * - in: path
- * name: mediaId
- * required: true
- * schema:
- * type: integer
- * requestBody:
- * required: true
- * content:
- * application/json:
- * schema:
- * $ref: '#/components/schemas/UpdatePhotoPrivacy'
- * responses:
- * 200:
- * description: Photo privacy settings updated
- */
+
 router
   .route('/:mediaId/privacy')
   .get(

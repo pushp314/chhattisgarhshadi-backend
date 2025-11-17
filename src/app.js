@@ -71,13 +71,6 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
-// Swagger API Documentation
-import { specs, swaggerUi } from './config/swagger.js';
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'Chhattisgarh Shadi API Docs',
-}));
-
 // Root route - Welcome message
 app.get('/', (req, res) => {
   res.json({
@@ -88,14 +81,12 @@ app.get('/', (req, res) => {
     timestamp: new Date().toISOString(),
     endpoints: {
       health: '/api/v1/health',
-      docs: '/api-docs',
       auth: '/api/v1/auth',
       users: '/api/v1/users',
       profiles: '/api/v1/profiles',
       matches: '/api/v1/matches',
       messages: '/api/v1/messages',
     },
-    documentation: 'Visit /api-docs for interactive API documentation',
   });
 });
 
