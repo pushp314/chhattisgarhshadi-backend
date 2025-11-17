@@ -57,10 +57,21 @@ export const searchUsers = asyncHandler(async (req, res) => {
     .json(new ApiResponse(HTTP_STATUS.OK, result, 'Users retrieved successfully'));
 });
 
+/**
+ * [NEW] Register an FCM token for push notifications
+ */
+export const registerFcmToken = asyncHandler(async (req, res) => {
+  const fcmToken = await userService.registerFcmToken(req.user.id, req.body);
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, fcmToken, 'FCM token registered successfully'));
+});
+
 export const userController = {
   getUserById,
   getMyProfile,
   updateMe,
   deleteMe,
   searchUsers,
+  registerFcmToken, // ADDED
 };

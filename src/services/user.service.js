@@ -56,7 +56,7 @@ export const getFullUserById = async (userId) => {
 export const getPublicUserById = async (userId, currentUserId) => {
   try {
     // --- Block Check [ADDED] ---
-    if (currentUserId) {
+    if (currentUserId && userId !== currentUserId) {
       const blockedIdSet = await blockService.getAllBlockedUserIds(currentUserId);
       // Check if the user being requested is in the block list
       if (blockedIdSet.has(userId)) {
@@ -210,6 +210,50 @@ export const searchUsers = async (query, currentUserId = null) => {
   }
 };
 
+/**
+ * [NEW] Register or update an FCM token for a device
+ * @param {number} userId - The user's ID
+ * @param {Object} data - Validated token data
+ * @returns {Promise<Object>} The created/updated FcmToken
+ */
+export const registerFcmToken = async (userId, data) => {
+  const { token, deviceId, deviceType, deviceName } = data;
+
+  try {
+    // Upsert ensures that one user+deviceId pair is unique
+    // It updates the token if the deviceId already exists
+    const fcmToken = await prisma.fcmToken.upsert({
+      where: {
+        userId_deviceId: {
+          userId,
+          deviceId,
+        },
+      },
+      update: {
+        token, // Update the token
+        deviceName: deviceName || null,
+        isActive: true, // Mark as active
+        lastUsedAt: new Date(), // Update timestamp
+      },
+      create: {
+        userId,
+        token,
+        deviceId,
+        deviceType,
+        deviceName: deviceName || null,
+        isActive: true,
+        lastUsedAt: new Date(),
+      },
+    });
+
+    logger.info(`FCM token registered for user ${userId} on device ${deviceId}`);
+    return fcmToken;
+  } catch (error) {
+    logger.error('Error in registerFcmToken:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error registering FCM token');
+  }
+};
+
 // Admin-specific functions (moved from the original service)
 /**
  * Get all users with pagination (Admin Only)
@@ -279,6 +323,7 @@ export const userService = {
   updateUser,
   deleteUser,
   searchUsers,
+  registerFcmToken, // ADDED
   // Admin functions
   getAllUsers,
   updateUserRole,

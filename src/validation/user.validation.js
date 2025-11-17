@@ -25,3 +25,15 @@ export const searchUsersSchema = z.object({
     limit: z.coerce.number().int().positive().optional(),
   }),
 });
+
+// ADDED: Schema for registering an FCM token
+export const registerFcmTokenSchema = z.object({
+  body: z.object({
+    token: z.string({ required_error: 'FCM token is required' }),
+    deviceId: z.string({ required_error: 'deviceId is required' }),
+    deviceType: z.enum(['IOS', 'ANDROID', 'WEB'], {
+      required_error: 'deviceType must be one of: IOS, ANDROID, WEB',
+    }),
+    deviceName: z.string().optional(),
+  }),
+});

@@ -52,13 +52,23 @@ export const createProfile = async (userId, data) => {
 
 /**
  * Get profile by user ID
- * @param {number} userId - User ID
+ * @param {number} userId - ID of the profile to get
+ * @param {number} [currentUserId] - ID of the user making the request
  * @returns {Promise<Object>}
  */
-export const getProfileByUserId = async (userId) => {
+export const getProfileByUserId = async (userId, currentUserId = null) => {
   try {
+    // --- Block Check [ADDED] ---
+    if (currentUserId && userId !== currentUserId) {
+      const blockedIdSet = await blockService.getAllBlockedUserIds(currentUserId);
+      if (blockedIdSet.has(userId)) {
+        throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.PROFILE_NOT_FOUND);
+      }
+    }
+    // --- End Block Check ---
+
     const profile = await prisma.profile.findUnique({
-      where: { userId },
+      where: { userId, user: { isActive: true, isBanned: false } }, // ADDED: Check user status
       include: {
         user: {
           select: {
@@ -68,7 +78,12 @@ export const getProfileByUserId = async (userId) => {
             createdAt: true,
           },
         },
-        media: true, // Include all media (photos, documents)
+        // MODIFIED: Also include privacy settings for each media
+        media: {
+          include: {
+            privacySettings: true,
+          },
+        },
         education: true,
         occupations: true,
       },
@@ -84,7 +99,9 @@ export const getProfileByUserId = async (userId) => {
       url: m.url,
       thumbnailUrl: m.thumbnailUrl,
       type: m.type,
-      isProfilePicture: m.isDefault, // Map isDefault to isProfilePicture
+      isProfilePicture: m.isDefault,
+      // ADDED: Pass privacy settings along
+      privacySettings: m.privacySettings, 
     })) || [];
 
     // Add calculated age and transformed media
@@ -110,8 +127,6 @@ export const getProfileByUserId = async (userId) => {
  */
 export const updateProfile = async (userId, data) => {
   try {
-    // Data is pre-validated by Zod and .strict() in the validation schema,
-    // so we can safely pass it. 'isVerified', 'profileCompleteness', etc., are rejected.
     const updatedProfile = await prisma.profile.update({
       where: { userId },
       data,
@@ -140,9 +155,6 @@ export const updateProfile = async (userId, data) => {
  */
 export const deleteProfile = async (userId) => {
   try {
-    // Note: This only deletes the profile.
-    // The user's account (User model) will still exist.
-    // The 'deleteMe' in user.service.js is the correct "delete account" flow.
     await prisma.profile.delete({
       where: { userId },
     });
@@ -157,7 +169,7 @@ export const deleteProfile = async (userId) => {
 /**
  * Search profiles with filters
  * @param {Object} query - Query parameters (validated)
- * @param {number} [currentUserId] - The ID of the user performing the search (optional)
+ * @param {number} [currentUserId] - The ID of the user performing the search
  * @returns {Promise<Object>}
  */
 export const searchProfiles = async (query, currentUserId = null) => {
@@ -172,41 +184,30 @@ export const searchProfiles = async (query, currentUserId = null) => {
       maritalStatus,
       minHeight,
       maxHeight,
-      // ADDED: Get new filters from validation
       nativeDistrict,
       speaksChhattisgarhi
     } = query;
 
     const where = {
-      isPublished: true, // Only search published profiles
+      isPublished: true, 
+      user: { 
+        isActive: true,
+        isBanned: false,
+      }
     };
 
-    // --- Block Check [ADDED] ---
-    // If we know who is searching, filter out blocked users and themselves
     if (currentUserId) {
       const blockedIds = Array.from(await blockService.getAllBlockedUserIds(currentUserId));
-      blockedIds.push(currentUserId); // Add self to block list
-      
+      blockedIds.push(currentUserId);
       where.userId = { notIn: blockedIds };
     }
-    // --- End Block Check ---
-
+    
     if (gender) where.gender = gender;
     if (maritalStatus) where.maritalStatus = maritalStatus;
-    
-    // ADDED: Chhattisgarh-specific filters
     if (nativeDistrict) where.nativeDistrict = { equals: nativeDistrict, mode: 'insensitive' };
     if (speaksChhattisgarhi !== undefined) where.speaksChhattisgarhi = speaksChhattisgarhi;
-
-    // PERFORMANCE FIX: Use 'in' for enums, not 'contains'
-    if (religions && religions.length > 0) {
-      where.religion = { in: religions };
-    }
-    
-    if (castes && castes.length > 0) {
-      where.caste = { in: castes, mode: 'insensitive' };
-    }
-
+    if (religions && religions.length > 0) where.religion = { in: religions };
+    if (castes && castes.length > 0) where.caste = { in: castes, mode: 'insensitive' };
     if (minHeight) where.height = { ...where.height, gte: minHeight };
     if (maxHeight) where.height = { ...where.height, lte: maxHeight };
 
@@ -218,7 +219,6 @@ export const searchProfiles = async (query, currentUserId = null) => {
         where.dateOfBirth.lte = maxDOB;
       }
       if (maxAge) {
-        // Decrement maxAge by 1 year to get the correct start range
         const minDOB = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
         where.dateOfBirth.gte = minDOB;
       }
@@ -231,18 +231,20 @@ export const searchProfiles = async (query, currentUserId = null) => {
         take: limit,
         include: {
           user: { select: { id: true, role: true } },
-          media: { where: { type: 'PROFILE_PHOTO' } }, // Only get profile photos for search
+          media: { 
+            where: { type: 'PROFILE_PHOTO', isDefault: true }, // MODIFIED: Only get default profile photo
+            include: { privacySettings: true } // Also get its settings
+          },
         },
         orderBy: {
           user: {
-            role: 'desc', // Show PREMIUM_USER first
+            role: 'desc',
           },
         },
       }),
       prisma.profile.count({ where }),
     ]);
 
-    // Add calculated age to each profile
     const profilesWithAge = profiles.map((profile) => ({
       ...profile,
       age: calculateAge(profile.dateOfBirth),
@@ -262,8 +264,7 @@ export const searchProfiles = async (query, currentUserId = null) => {
 };
 
 /**
- * [FIXED] Add photo URL to Media table
- * This is called by upload.controller.js
+ * Add photo URL to Media table
  * @param {string} userId - User ID
  * @param {Object} mediaData - { url, thumbnailUrl, key, ... } from uploadService
  * @param {string} mediaType - e.g., 'PROFILE_PHOTO'
@@ -279,24 +280,42 @@ export const addPhoto = async (userId, mediaData, mediaType) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
 
-    const newMedia = await prisma.media.create({
-      data: {
-        userId: userId,
-        profileId: profile.id,
-        type: mediaType,
-        url: mediaData.url,
-        thumbnailUrl: mediaData.thumbnailUrl,
-        fileName: mediaData.filename, // Changed from fileName
-        fileSize: mediaData.size,
-        mimeType: mediaData.mimetype,
-        // You might want to add logic for isDefault
-      },
+    // --- MODIFICATION [ADDED] ---
+    // Create Media and its PhotoPrivacySettings in a transaction
+    const newMedia = await prisma.$transaction(async (tx) => {
+      // 1. Create the Media object
+      const media = await tx.media.create({
+        data: {
+          userId: userId,
+          profileId: profile.id,
+          type: mediaType,
+          url: mediaData.url,
+          thumbnailUrl: mediaData.thumbnailUrl,
+          fileName: mediaData.fileName, // Corrected from filename
+          fileSize: mediaData.fileSize,
+          mimeType: mediaData.mimeType,
+          // TODO: Add logic for isDefault
+        },
+      });
+
+      // 2. Create the default PhotoPrivacySettings for this media
+      await tx.photoPrivacySettings.create({
+        data: {
+          mediaId: media.id,
+          userId: userId,
+          // All other fields will use the @default values from schema.prisma
+        },
+      });
+
+      return media;
     });
+    // --- End Modification ---
 
     // Recalculate profile completeness
     await updateProfileCompleteness(prisma, userId);
 
-    logger.info(`Photo added to Media table for user: ${userId}`);
+    logger.info(`Photo and privacy settings added for user: ${userId}`);
+    // Return the media object (the privacy settings are linked)
     return newMedia;
   } catch (error) {
     logger.error('Error in addPhoto:', error);
@@ -306,7 +325,7 @@ export const addPhoto = async (userId, mediaData, mediaType) => {
 };
 
 /**
- * [FIXED] Remove photo from Media table and S3
+ * Remove photo from Media table and S3
  * @param {string} userId - User ID (for verification)
  * @param {number} mediaId - The ID of the media to delete
  * @returns {Promise<void>}
@@ -321,26 +340,25 @@ export const deletePhoto = async (userId, mediaId) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Photo not found');
     }
 
-    // Security check: Ensure the user owns this photo
     if (media.userId !== userId) {
       throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You are not authorized to delete this photo');
     }
 
     // 1. Delete from S3
-    // We need the key. Assuming URL is the full S3 URL
     const key = uploadService.extractKeyFromUrl(media.url);
     if (key) {
-      await uploadService.deleteFile(key); // FIX: Changed to deleteFile
+      await uploadService.deleteFile(key);
     }
-    // Also delete thumbnail if it exists
     if (media.thumbnailUrl) {
       const thumbKey = uploadService.extractKeyFromUrl(media.thumbnailUrl);
       if (thumbKey) {
-        await uploadService.deleteFile(thumbKey); // FIX: Changed to deleteFile
+        await uploadService.deleteFile(thumbKey);
       }
     }
 
     // 2. Delete from database
+    // The `onDelete: Cascade` in Prisma schema for PhotoPrivacySettings
+    // ensures that the privacy settings are automatically deleted when the media is deleted.
     await prisma.media.delete({
       where: { id: mediaId },
     });
@@ -362,6 +380,6 @@ export const profileService = {
   updateProfile,
   deleteProfile,
   searchProfiles,
-  addPhoto, // This is the fixed version
-  deletePhoto, // This is the new, fixed version
+  addPhoto,
+  deletePhoto,
 };

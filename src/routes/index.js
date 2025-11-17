@@ -37,9 +37,13 @@ router.use('/block', blockRoutes);
 import reportRoutes from './report.routes.js';
 router.use('/report', reportRoutes);
 
-// ADDED: Profile View routes
+// Profile View routes
 import profileViewRoutes from './profileView.routes.js';
-router.use('/view', profileViewRoutes); // Using /view as the prefix
+router.use('/view', profileViewRoutes);
+
+// ADDED: Contact Request routes
+import contactRequestRoutes from './contactRequest.routes.js';
+router.use('/contact-request', contactRequestRoutes);
 
 // Match routes
 import matchRoutes from './match.routes.js';
@@ -49,13 +53,29 @@ router.use('/matches', matchRoutes);
 import messageRoutes from './message.routes.js';
 router.use('/messages', messageRoutes);
 
-// Notification routes
+// Notification routes (for GETTING notifications)
 import notificationRoutes from './notification.routes.js';
 router.use('/notifications', notificationRoutes);
 
 // Payment routes
 import paymentRoutes from './payment.routes.js';
 router.use('/payments', paymentRoutes);
+
+// Subscription Plan routes
+import subscriptionRoutes from './subscription.routes.js';
+router.use('/plans', subscriptionRoutes);
+
+// Privacy Settings routes
+import privacyRoutes from './privacy.routes.js';
+router.use('/privacy', privacyRoutes);
+
+// Notification Settings routes
+import notificationSettingsRoutes from './notificationSettings.routes.js';
+router.use('/settings/notifications', notificationSettingsRoutes);
+
+// Photo Privacy Settings routes
+import photoPrivacyRoutes from './photoPrivacy.routes.js';
+router.use('/photos', photoPrivacyRoutes);
 
 // Upload routes
 import uploadRoutes from './upload.routes.js';

@@ -334,3 +334,102 @@ export const REPORT_REASON = {
   PRIVACY_VIOLATION: 'PRIVACY_VIOLATION',
   OTHER: 'OTHER',
 };
+
+
+/**
+ * Profile Visibility Options
+ * ADDED
+ */
+export const PROFILE_VISIBILITY = {
+  PUBLIC: 'PUBLIC',
+  REGISTERED: 'REGISTERED',
+  MATCHED: 'MATCHED',
+  HIDDEN: 'HIDDEN',
+};
+
+/**
+ * Privacy Level Options (for contact info, etc.)
+ * ADDED
+ */
+export const PRIVACY_LEVEL = {
+  PUBLIC: 'PUBLIC',
+  REGISTERED: 'REGISTERED',
+  MATCHED: 'MATCHED',
+  HIDDEN: 'HIDDEN',
+};
+
+
+// ... (all your other exports like REPORT_REASON, PROFILE_VISIBILITY, etc.)
+
+/**
+ * Communication Privacy Options (for receiving requests)
+ * ADDED
+ */
+export const COMMUNICATION_PRIVACY = {
+  EVERYONE: 'EVERYONE',
+  MATCHED_ONLY: 'MATCHED_ONLY',
+  HIDDEN: 'HIDDEN', // You might want a 'nobody' option
+};
+
+/**
+ * Message Privacy Options
+ * ADDED
+ */
+export const MESSAGE_PRIVACY = {
+  EVERYONE: 'EVERYONE',
+  MATCHED_ONLY: 'MATCHED_ONLY',
+};
+
+// ... (all your other exports like REPORT_REASON, COMMUNICATION_PRIVACY, etc.)
+
+/**
+ * Photo Visibility Options
+ * ADDED
+ */
+export const PHOTO_VISIBILITY = {
+  REGISTERED: 'REGISTERED',
+  MATCHED: 'MATCHED',
+  HIDDEN: 'HIDDEN',
+};
+
+/**
+ * Watermark Position Options
+ * ADDED
+ */
+export const WATERMARK_POSITION = {
+  BOTTOM_RIGHT: 'BOTTOM_RIGHT',
+  CENTER: 'CENTER',
+  TOP_LEFT: 'TOP_LEFT',
+  // ... add others as needed
+};
+
+/**
+ * Photo Blur Level Options
+ * ADDED
+ */
+export const BLUR_LEVEL = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+};
+
+
+/**
+ * Contact Request Type Options
+ * ADDED
+ */
+export const CONTACT_REQUEST_TYPE = {
+  PHONE: 'PHONE',
+  EMAIL: 'EMAIL',
+  SOCIAL: 'SOCIAL', // Example, based on schema `showSocialMedia`
+};
+
+/**
+ * Contact Request Status Options
+ * ADDED
+ */
+export const CONTACT_REQUEST_STATUS = {
+  PENDING: 'PENDING',
+  APPROVED: 'APPROVED',
+  REJECTED: 'REJECTED',
+};
