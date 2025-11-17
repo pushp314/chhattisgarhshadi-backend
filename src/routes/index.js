@@ -29,9 +29,17 @@ router.use('/preference', partnerPreferenceRoutes);
 import shortlistRoutes from './shortlist.routes.js';
 router.use('/shortlist', shortlistRoutes);
 
-// ADDED: Block routes
+// Block routes
 import blockRoutes from './block.routes.js';
 router.use('/block', blockRoutes);
+
+// Report routes
+import reportRoutes from './report.routes.js';
+router.use('/report', reportRoutes);
+
+// ADDED: Profile View routes
+import profileViewRoutes from './profileView.routes.js';
+router.use('/view', profileViewRoutes); // Using /view as the prefix
 
 // Match routes
 import matchRoutes from './match.routes.js';

@@ -317,3 +317,20 @@ export const SUCCESS_MESSAGES = {
   PAYMENT_SUCCESS: 'Payment successful',
   UPLOAD_SUCCESS: 'File uploaded successfully',
 };
+
+
+/**
+ * Report Reasons (Matches Prisma Enum)
+ * ADDED
+ */
+export const REPORT_REASON = {
+  FAKE_PROFILE: 'FAKE_PROFILE',
+  INAPPROPRIATE_CONTENT: 'INAPPROPRIATE_CONTENT',
+  HARASSMENT: 'HARASSMENT',
+  SCAM: 'SCAM',
+  SPAM: 'SPAM',
+  UNDERAGE: 'UNDERAGE',
+  IMPERSONATION: 'IMPERSONATION',
+  PRIVACY_VIOLATION: 'PRIVACY_VIOLATION',
+  OTHER: 'OTHER',
+};
