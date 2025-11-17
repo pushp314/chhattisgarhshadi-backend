@@ -6,7 +6,7 @@ import { createReportSchema } from '../validation/report.validation.js';
 
 const router = Router();
 
-// All report routes require authentication
+// All report routes require authentications
 router.use(authenticate, requireCompleteProfile);
 
 /**
