@@ -15,9 +15,9 @@ const options = {
     },
     servers: [
       {
-        url: process.env.NODE_ENV === 'production'
-          ? 'https://chhattisgarhshadi-backend.onrender.com'
-          : 'http://localhost:8080',
+url: process.env.NODE_ENV === 'production'
+  ? 'https://chhattisgarhshadi-backend.onrender.com/api/v1'
+  : 'http://localhost:8080/api/v1',
         description: process.env.NODE_ENV === 'production' ? 'Production' : 'Development',
       },
     ],
@@ -36,7 +36,7 @@ const options = {
       },
     ],
   },
-  apis: ['./src/routes/*.js', './src/controllers/*.js'], // Path to API docs
+  apis: ['./src/routes/*.js'], // Path to API docs
 };
 
 const specs = swaggerJsdoc(options);
