@@ -12,6 +12,11 @@ export const googleMobileAuthSchema = z.object({
     // Legacy idToken flow (BACKWARD COMPATIBILITY)
     idToken: z.string().min(1).optional(),
     deviceInfo: z.object({}).passthrough().optional(), // Allow any device info object
+    
+    // --- ADDED: Optional agentCode ---
+    agentCode: z.string().max(20).optional(),
+    // --- End of Add ---
+
   }).refine(
     (data) => data.authorizationCode || data.idToken,
     {

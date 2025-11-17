@@ -7,7 +7,8 @@ import { HTTP_STATUS } from '../utils/constants.js';
 class AuthController {
   
   googleMobileAuth = asyncHandler(async (req, res) => {
-    const { idToken, authorizationCode, redirectUri, deviceInfo } = req.body;
+    // --- MODIFIED: Added agentCode ---
+    const { idToken, authorizationCode, redirectUri, deviceInfo, agentCode } = req.body;
 
     let result;
 
@@ -18,14 +19,16 @@ class AuthController {
         authorizationCode,
         redirectUri || 'com.chhattisgarhshaadi.app://oauth2redirect',
         req.ip,
-        deviceInfo || {}
+        deviceInfo || {},
+        agentCode // --- ADDED ---
       );
     } else if (idToken) {
       // Legacy idToken flow (BACKWARD COMPATIBILITY)
       result = await authService.verifyGoogleToken(
         idToken,
         req.ip,
-        deviceInfo || {}
+        deviceInfo || {},
+        agentCode // --- ADDED ---
       );
     } else {
       throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Either authorizationCode or idToken is required');
@@ -44,7 +47,8 @@ class AuthController {
   });
 
   googleCallback = asyncHandler(async (req, res) => {
-    const { code, state, error } = req.query;
+    // --- FIX: Removed unused 'state' variable ---
+    const { code, error } = req.query;
 
     // Handle OAuth error from Google
     if (error) {
@@ -68,11 +72,14 @@ class AuthController {
       const redirectUri = process.env.GOOGLE_CALLBACK_URL || 
                           `${req.protocol}://${req.get('host')}/api/v1/auth/google/callback`;
       
+      // Note: We'd need to pass agentCode from 'state' here if this flow is also used for agent referral.
+      // For now, I'm only modifying the mobile flow as requested.
       const result = await authService.verifyGoogleAuthCode(
         code,
         redirectUri,
         req.ip,
         { userAgent: req.get('user-agent') }
+        // We could add agentCode here from 'state' if needed
       );
 
       // Redirect to app with tokens via deep link

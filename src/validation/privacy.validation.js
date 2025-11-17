@@ -1,10 +1,16 @@
 import { z } from 'zod';
 import { 
+  // GENDER, // Removed
+  // MARITAL_STATUS, // Removed
+  // RELIGION, // Removed
+  // MOTHER_TONGUE, // Removed
   EDUCATION_LEVEL, 
+  // OCCUPATION_TYPE, // Removed
   PROFILE_VISIBILITY, 
   PRIVACY_LEVEL,
   COMMUNICATION_PRIVACY,
   MESSAGE_PRIVACY,
+  TWO_FACTOR_METHOD, // ADDED
 } from '../utils/constants.js';
 
 // Helper to convert single string to array for fields that support multiple values
@@ -75,7 +81,7 @@ export const upsertCommunicationSettingsSchema = z.object({
   }).strict(),
 });
 
-// ADDED: Schema for updating search visibility settings
+// Schema for updating search visibility settings
 export const upsertSearchVisibilitySchema = z.object({
   body: z.object({
     showInSearch: z.boolean().optional(),
@@ -99,5 +105,21 @@ export const upsertSearchVisibilitySchema = z.object({
     pausedUntil: z.string().datetime().optional().nullable(),
     showOnlyInChhattisgarh: z.boolean().optional(),
     prioritizeChhattisgarhi: z.boolean().optional(),
+  }).strict(),
+});
+
+// ADDED: Schema for updating account security settings
+export const upsertAccountSecuritySchema = z.object({
+  body: z.object({
+    twoFactorEnabled: z.boolean().optional(),
+    twoFactorMethod: z.nativeEnum(TWO_FACTOR_METHOD).optional().nullable(),
+    requireOtpNewDevice: z.boolean().optional(),
+    requireOtpNewLocation: z.boolean().optional(),
+    sessionTimeout: z.coerce.number().int().positive().optional(),
+    maxActiveSessions: z.coerce.number().int().positive().optional(),
+    recoveryEmail: z.string().email().optional().nullable(),
+    recoveryPhone: z.string().regex(/^[6-9]\d{9}$/, 'Invalid Indian phone number').optional().nullable(),
+    // Note: 'twoFactorSecret' and 'backupCodes' should be handled by dedicated endpoints
+    // 'recoveryEmailVerified' & 'recoveryPhoneVerified' should be read-only
   }).strict(),
 });

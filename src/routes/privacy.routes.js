@@ -2,11 +2,11 @@ import { Router } from 'express';
 import { privacyController } from '../controllers/privacy.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.middleware.js';
-// ADDED import for new schema
 import { 
   upsertProfilePrivacySchema,
-  upsertCommunicationSettingsSchema,
-  upsertSearchVisibilitySchema // ADDED
+  upsertCommunicationSettingsSchema, 
+  upsertSearchVisibilitySchema,
+  upsertAccountSecuritySchema, // ADDED
 } from '../validation/privacy.validation.js';
 
 const router = Router();
@@ -114,6 +114,40 @@ router
   .put(
     validate(upsertSearchVisibilitySchema),
     privacyController.updateMySearchVisibilitySettings
+  );
+
+/**
+ * @swagger
+ * /api/v1/privacy/security:
+ * get:
+ * summary: Get the user's account security settings
+ * tags: [Privacy Settings]
+ * security:
+ * - bearerAuth: []
+ * responses:
+ * 200:
+ * description: Account security settings retrieved
+ * put:
+ * summary: Create or update the user's account security settings
+ * tags: [Privacy Settings]
+ * security:
+ * - bearerAuth: []
+ * requestBody:
+ * required: true
+ * content:
+ * application/json:
+ * schema:
+ * $ref: '#/components/schemas/UpsertAccountSecurity'
+ * responses:
+ * 200:
+ * description: Account security settings updated
+ */
+router
+  .route('/security')
+  .get(privacyController.getMyAccountSecuritySettings)
+  .put(
+    validate(upsertAccountSecuritySchema),
+    privacyController.updateMyAccountSecuritySettings
   );
 
 export default router;

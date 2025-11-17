@@ -15,9 +15,10 @@ class AuthService {
    * @param {string} redirectUri - Redirect URI used in OAuth flow
    * @param {string} ipAddress - User IP address
    * @param {Object} deviceInfo - Device information
+   * @param {string} [agentCode] - Optional agent referral code
    * @returns {Promise<Object>} Auth result with user and tokens
    */
-  async verifyGoogleAuthCode(authorizationCode, redirectUri, ipAddress, deviceInfo = {}) {
+  async verifyGoogleAuthCode(authorizationCode, redirectUri, ipAddress, deviceInfo = {}, agentCode = null) {
     try {
       // Exchange authorization code for user info
       const googleUser = await googleAuthClient.verifyAuthorizationCode(authorizationCode, redirectUri);
@@ -26,7 +27,8 @@ class AuthService {
         throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Email not provided by Google');
       }
 
-      return await this._processGoogleAuth(googleUser, ipAddress, deviceInfo);
+      // --- MODIFIED: Pass agentCode ---
+      return await this._processGoogleAuth(googleUser, ipAddress, deviceInfo, agentCode);
     } catch (error) {
       logger.error('❌ Google authorization code verification error:', error.message);
       if (!(error instanceof ApiError)) {
@@ -41,9 +43,10 @@ class AuthService {
    * @param {string} idToken - Google ID token
    * @param {string} ipAddress - User IP address
    * @param {Object} deviceInfo - Device information
+   * @param {string} [agentCode] - Optional agent referral code
    * @returns {Promise<Object>} Auth result with user and tokens
    */
-  async verifyGoogleToken(idToken, ipAddress, deviceInfo = {}) {
+  async verifyGoogleToken(idToken, ipAddress, deviceInfo = {}, agentCode = null) {
     try {
       // Verify token with Google
       const googleUser = await googleAuthClient.verifyIdToken(idToken);
@@ -52,7 +55,8 @@ class AuthService {
         throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Email not provided by Google');
       }
 
-      return await this._processGoogleAuth(googleUser, ipAddress, deviceInfo);
+      // --- MODIFIED: Pass agentCode ---
+      return await this._processGoogleAuth(googleUser, ipAddress, deviceInfo, agentCode);
     } catch (error) {
       logger.error('❌ Google auth error:', error.message);
       if (!(error instanceof ApiError)) {
@@ -66,7 +70,7 @@ class AuthService {
    * Common Google auth processing logic
    * @private
    */
-  async _processGoogleAuth(googleUser, ipAddress, deviceInfo) {
+  async _processGoogleAuth(googleUser, ipAddress, deviceInfo, agentCode = null) {
     // Check if user exists by googleId
     let user = await prisma.user.findUnique({
       where: { googleId: googleUser.googleId },
@@ -76,6 +80,7 @@ class AuthService {
     });
 
     let isNewUser = false;
+    let agentId = null; // --- ADDED ---
 
     if (!user) {
       // Check if email already exists (from another auth method)
@@ -86,6 +91,20 @@ class AuthService {
       if (existingUser) {
         throw new ApiError(HTTP_STATUS.CONFLICT, 'An account with this email already exists.');
       }
+
+      // --- ADDED: Validate Agent Code ---
+      if (agentCode) {
+        const agent = await prisma.agent.findUnique({
+          where: { agentCode: agentCode, status: 'ACTIVE' }, // Only link to active agents
+        });
+        if (agent) {
+          agentId = agent.id;
+          logger.info(`Valid agent code ${agentCode} provided for new user ${googleUser.email}.`);
+        } else {
+          logger.warn(`Invalid or inactive agent code ${agentCode} provided by ${googleUser.email}.`);
+        }
+      }
+      // --- End of Add ---
 
       // Create new user
       isNewUser = true;
@@ -99,6 +118,12 @@ class AuthService {
           lastLoginAt: new Date(),
           lastLoginIp: ipAddress,
           deviceInfo: JSON.stringify(deviceInfo),
+
+          // --- ADDED: Link to agent if code was valid ---
+          agentId: agentId,
+          agentCodeUsed: agentId ? agentCode : null,
+          referredAt: agentId ? new Date() : null,
+          // --- End of Add ---
         },
         include: {
           profile: true,

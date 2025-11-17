@@ -3,14 +3,13 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 import { logger } from '../config/logger.js';
 
-// --- ProfilePrivacy Helpers (No Change) ---
-// (Assuming these are defined or imported)
-
-// --- CommunicationPreferences Helpers (No Change) ---
+// --- Helpers for parsing JSON fields ---
 const communicationArrayFields = ['allowedReligions', 'allowedLocations'];
-const processCommDataForSave = (data) => {
+const searchArrayFields = ['excludedCountries'];
+
+const processDataForSave = (data, arrayFields) => {
   const processedData = { ...data };
-  for (const key of communicationArrayFields) {
+  for (const key of arrayFields) {
     if (Array.isArray(processedData[key])) {
       processedData[key] = JSON.stringify(processedData[key]);
     } else if (processedData[key] === null) {
@@ -18,45 +17,17 @@ const processCommDataForSave = (data) => {
     }
   }
   return processedData;
-};
-const parseCommDataAfterFetch = (preference) => {
-  if (!preference) return null;
-  const parsedPreference = { ...preference };
-  for (const key of communicationArrayFields) {
-    if (typeof parsedPreference[key] === 'string') {
-      try {
-        parsedPreference[key] = JSON.parse(parsedPreference[key]);
-      } catch (e) {
-        logger.warn(`Failed to parse communication preference field '${key}' for userId ${preference.userId}`);
-        parsedPreference[key] = [];
-      }
-    }
-  }
-  return parsedPreference;
 };
 
-// --- SearchVisibility Helpers [NEW] ---
-const searchArrayFields = ['excludedCountries'];
-const processSearchDataForSave = (data) => {
-  const processedData = { ...data };
-  for (const key of searchArrayFields) {
-    if (Array.isArray(processedData[key])) {
-      processedData[key] = JSON.stringify(processedData[key]);
-    } else if (processedData[key] === null) {
-      processedData[key] = '[]';
-    }
-  }
-  return processedData;
-};
-const parseSearchDataAfterFetch = (settings) => {
+const parseDataAfterFetch = (settings, arrayFields) => {
   if (!settings) return null;
   const parsedSettings = { ...settings };
-  for (const key of searchArrayFields) {
+  for (const key of arrayFields) {
     if (typeof parsedSettings[key] === 'string') {
       try {
         parsedSettings[key] = JSON.parse(parsedSettings[key]);
       } catch (e) {
-        logger.warn(`Failed to parse search visibility field '${key}' for userId ${settings.userId}`);
+        logger.warn(`Failed to parse settings field '${key}' for userId ${settings.userId}`);
         parsedSettings[key] = [];
       }
     }
@@ -65,7 +36,7 @@ const parseSearchDataAfterFetch = (settings) => {
 };
 
 
-// --- ProfilePrivacy Service (No Change) ---
+// --- ProfilePrivacy Service ---
 export const getProfilePrivacy = async (userId) => {
   try {
     let settings = await prisma.profilePrivacySettings.findUnique({
@@ -96,7 +67,7 @@ export const updateProfilePrivacy = async (userId, data) => {
   }
 };
 
-// --- CommunicationPreferences Service (No Change) ---
+// --- CommunicationPreferences Service ---
 export const getCommunicationPreferences = async (userId) => {
   try {
     let settings = await prisma.communicationPreferences.findUnique({
@@ -106,14 +77,14 @@ export const getCommunicationPreferences = async (userId) => {
       logger.info(`No communication preferences found for user ${userId}, creating defaults.`);
       settings = await prisma.communicationPreferences.create({ data: { userId } });
     }
-    return parseCommDataAfterFetch(settings);
+    return parseDataAfterFetch(settings, communicationArrayFields);
   } catch (error) {
     logger.error('Error in getCommunicationPreferences:', error);
     throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving communication preferences');
   }
 };
 export const updateCommunicationPreferences = async (userId, data) => {
-  const processedData = processCommDataForSave(data);
+  const processedData = processDataForSave(data, communicationArrayFields);
   try {
     const settings = await prisma.communicationPreferences.upsert({
       where: { userId },
@@ -121,30 +92,62 @@ export const updateCommunicationPreferences = async (userId, data) => {
       create: { userId, ...processedData },
     });
     logger.info(`Communication preferences updated for user: ${userId}`);
-    return parseCommDataAfterFetch(settings);
+    return parseDataAfterFetch(settings, communicationArrayFields);
   } catch (error) {
     logger.error('Error in updateCommunicationPreferences:', error);
     throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating communication preferences');
   }
 };
 
-// --- SearchVisibility Service [NEW] ---
-
-/**
- * [NEW] Get a user's search visibility settings.
- * Creates default settings if they don't exist.
- * @param {number} userId - The user's ID
- * @returns {Promise<Object>} The search visibility settings
- */
+// --- SearchVisibility Service ---
 export const getSearchVisibilitySettings = async (userId) => {
   try {
     let settings = await prisma.searchVisibilitySettings.findUnique({
       where: { userId },
     });
-
     if (!settings) {
       logger.info(`No search visibility settings found for user ${userId}, creating defaults.`);
-      settings = await prisma.searchVisibilitySettings.create({
+      settings = await prisma.searchVisibilitySettings.create({ data: { userId } });
+    }
+    return parseDataAfterFetch(settings, searchArrayFields);
+  } catch (error) {
+    logger.error('Error in getSearchVisibilitySettings:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving search settings');
+  }
+};
+export const updateSearchVisibilitySettings = async (userId, data) => {
+  const processedData = processDataForSave(data, searchArrayFields);
+  try {
+    const settings = await prisma.searchVisibilitySettings.upsert({
+      where: { userId },
+      update: processedData,
+      create: { userId, ...processedData },
+    });
+    logger.info(`Search visibility settings updated for user: ${userId}`);
+    return parseDataAfterFetch(settings, searchArrayFields);
+  } catch (error) {
+    logger.error('Error in updateSearchVisibilitySettings:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating search settings');
+  }
+};
+
+// --- AccountSecurity Service [NEW] ---
+
+/**
+ * [NEW] Get a user's account security settings.
+ * Creates default settings if they don't exist.
+ * @param {number} userId - The user's ID
+ * @returns {Promise<Object>} The account security settings
+ */
+export const getAccountSecuritySettings = async (userId) => {
+  try {
+    let settings = await prisma.accountSecuritySettings.findUnique({
+      where: { userId },
+    });
+
+    if (!settings) {
+      logger.info(`No account security settings found for user ${userId}, creating defaults.`);
+      settings = await prisma.accountSecuritySettings.create({
         data: {
           userId,
           // All fields will use the @default values from schema.prisma
@@ -152,36 +155,51 @@ export const getSearchVisibilitySettings = async (userId) => {
       });
     }
     
-    return parseSearchDataAfterFetch(settings);
+    // Do not return sensitive fields like twoFactorSecret or backupCodes
+    // FIX: Destructure the original field name to an underscore-prefixed variable
+    const { twoFactorSecret: _twoFactorSecret, backupCodes: _backupCodes, ...safeSettings } = settings;
+    return safeSettings;
   } catch (error) {
-    logger.error('Error in getSearchVisibilitySettings:', error);
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving search settings');
+    logger.error('Error in getAccountSecuritySettings:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving security settings');
   }
 };
 
 /**
- * [NEW] Create or update a user's search visibility settings
+ * [NEW] Create or update a user's account security settings
  * @param {number} userId - The user's ID
  * @param {Object} data - Validated settings data
  * @returns {Promise<Object>} The updated settings
  */
-export const updateSearchVisibilitySettings = async (userId, data) => {
-  const processedData = processSearchDataForSave(data);
+export const updateAccountSecuritySettings = async (userId, data) => {
   try {
-    const settings = await prisma.searchVisibilitySettings.upsert({
+    // Prevent client from updating sensitive fields
+    // FIX: Destructure the original field name to an underscore-prefixed variable
+    const { 
+      twoFactorSecret: _twoFactorSecret, 
+      backupCodes: _backupCodes, 
+      recoveryEmailVerified: _recoveryEmailVerified, 
+      recoveryPhoneVerified: _recoveryPhoneVerified, 
+      ...safeData 
+    } = data;
+
+    const settings = await prisma.accountSecuritySettings.upsert({
       where: { userId },
-      update: processedData,
+      update: safeData,
       create: {
         userId,
-        ...processedData,
+        ...safeData,
       },
     });
     
-    logger.info(`Search visibility settings updated for user: ${userId}`);
-    return parseSearchDataAfterFetch(settings);
+    logger.info(`Account security settings updated for user: ${userId}`);
+    // Do not return sensitive fields
+    // FIX: Destructure the original field name to an underscore-prefixed variable
+    const { twoFactorSecret: _s, backupCodes: _b, ...safeSettings } = settings;
+    return safeSettings;
   } catch (error) {
-    logger.error('Error in updateSearchVisibilitySettings:', error);
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating search settings');
+    logger.error('Error in updateAccountSecuritySettings:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error updating security settings');
   }
 };
 
@@ -190,6 +208,8 @@ export const privacyService = {
   updateProfilePrivacy,
   getCommunicationPreferences,
   updateCommunicationPreferences,
-  getSearchVisibilitySettings,    // ADDED
-  updateSearchVisibilitySettings, // ADDED
+  getSearchVisibilitySettings,
+  updateSearchVisibilitySettings,
+  getAccountSecuritySettings,     // ADDED
+  updateAccountSecuritySettings,  // ADDED
 };

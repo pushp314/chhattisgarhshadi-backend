@@ -18,7 +18,7 @@ const userPublicSelect = {
 };
 
 /**
- * Get a user's full details (for the user themselves)
+ * Get a user's full details (for the user themselves OR ADMIN)
  * @param {string} userId - User ID
  * @returns {Promise<Object>}
  */
@@ -28,6 +28,14 @@ export const getFullUserById = async (userId) => {
       where: { id: userId, isActive: true },
       include: {
         profile: true,
+        // --- ADDED: Include agent name for admin panel ---
+        agent: {
+          select: {
+            agentCode: true,
+            agentName: true,
+          },
+        },
+        // --- End of Add ---
       },
     });
 
@@ -37,6 +45,7 @@ export const getFullUserById = async (userId) => {
     
     // It's safe to return the full user object here because
     // it's only called by getMyProfile (for the user themselves)
+    // or by an admin (who is allowed to see this)
     return user;
   } catch (error) {
     logger.error('Error in getFullUserById:', error);
@@ -270,6 +279,14 @@ export const getAllUsers = async (query) => {
         take: limit,
         include: {
           profile: true,
+          // --- ADDED: Include agent name for admin panel ---
+          agent: {
+            select: {
+              agentCode: true,
+              agentName: true,
+            },
+          },
+          // --- End of Add ---
         },
         orderBy: {
           createdAt: 'desc',
@@ -323,7 +340,7 @@ export const userService = {
   updateUser,
   deleteUser,
   searchUsers,
-  registerFcmToken, // ADDED
+  registerFcmToken,
   // Admin functions
   getAllUsers,
   updateUserRole,

@@ -3,7 +3,7 @@ import { ApiResponse } from '../utils/ApiResponse.js';
 import { privacyService } from '../services/privacy.service.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
-// --- ProfilePrivacy (No Change) ---
+// --- ProfilePrivacy ---
 export const getMyProfilePrivacy = asyncHandler(async (req, res) => {
   const settings = await privacyService.getProfilePrivacy(req.user.id);
   res
@@ -32,7 +32,7 @@ export const updateMyProfilePrivacy = asyncHandler(async (req, res) => {
     );
 });
 
-// --- CommunicationPreferences (No Change) ---
+// --- CommunicationPreferences ---
 export const getMyCommunicationSettings = asyncHandler(async (req, res) => {
   const settings = await privacyService.getCommunicationPreferences(req.user.id);
   res
@@ -61,11 +61,7 @@ export const updateMyCommunicationSettings = asyncHandler(async (req, res) => {
     );
 });
 
-// --- SearchVisibility [NEW] ---
-
-/**
- * [NEW] Get the logged-in user's search visibility settings
- */
+// --- SearchVisibility ---
 export const getMySearchVisibilitySettings = asyncHandler(async (req, res) => {
   const settings = await privacyService.getSearchVisibilitySettings(req.user.id);
   res
@@ -78,10 +74,6 @@ export const getMySearchVisibilitySettings = asyncHandler(async (req, res) => {
       )
     );
 });
-
-/**
- * [NEW] Create or update the logged-in user's search visibility settings
- */
 export const updateMySearchVisibilitySettings = asyncHandler(async (req, res) => {
   const settings = await privacyService.updateSearchVisibilitySettings(
     req.user.id,
@@ -98,12 +90,51 @@ export const updateMySearchVisibilitySettings = asyncHandler(async (req, res) =>
     );
 });
 
+// --- AccountSecurity [NEW] ---
+
+/**
+ * [NEW] Get the logged-in user's account security settings
+ */
+export const getMyAccountSecuritySettings = asyncHandler(async (req, res) => {
+  const settings = await privacyService.getAccountSecuritySettings(req.user.id);
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        settings,
+        'Account security settings retrieved successfully'
+      )
+    );
+});
+
+/**
+ * [NEW] Create or update the logged-in user's account security settings
+ */
+export const updateMyAccountSecuritySettings = asyncHandler(async (req, res) => {
+  const settings = await privacyService.updateAccountSecuritySettings(
+    req.user.id,
+    req.body
+  );
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.OK,
+        settings,
+        'Account security settings updated successfully'
+      )
+    );
+});
+
 
 export const privacyController = {
   getMyProfilePrivacy,
   updateMyProfilePrivacy,
   getMyCommunicationSettings,
   updateMyCommunicationSettings,
-  getMySearchVisibilitySettings,    // ADDED
-  updateMySearchVisibilitySettings, // ADDED
+  getMySearchVisibilitySettings,
+  updateMySearchVisibilitySettings,
+  getMyAccountSecuritySettings,     // ADDED
+  updateMyAccountSecuritySettings,  // ADDED
 };

@@ -467,3 +467,14 @@ export const AGENT_STATUS = {
   SUSPENDED: 'SUSPENDED',
   TERMINATED: 'TERMINATED',
 };
+
+
+/**
+ * Two-Factor Authentication Methods
+ * ADDED
+ */
+export const TWO_FACTOR_METHOD = {
+  SMS: 'SMS',
+  EMAIL: 'EMAIL',
+  BOTH: 'BOTH',
+};

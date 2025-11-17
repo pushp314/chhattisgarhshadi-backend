@@ -445,42 +445,19 @@ model Agent {
   gstNumber    String? @db.VarChar(20)
   panNumber    String? @db.VarChar(20)
 
-  // Commission Structure
-  commissionType  String  @default("PERCENTAGE") @db.VarChar(20)
-  commissionValue Decimal @default(10.00) @db.Decimal(5, 2)
-  commissionOn    String  @default("SUBSCRIPTION") @db.VarChar(30)
-
-  // Tier System
-  tierLevel  Int      @default(1)
-  tierTarget Int?
-  tierBonus  Decimal? @db.Decimal(10, 2)
-
-  // Statistics (Auto-calculated)
-  totalUsersAdded   Int     @default(0)
-  activeUsers       Int     @default(0)
-  premiumUsers      Int     @default(0)
-  totalRevenue      Decimal @default(0) @db.Decimal(12, 2)
-  totalCommission   Decimal @default(0) @db.Decimal(12, 2)
-  pendingCommission Decimal @default(0) @db.Decimal(12, 2)
-  paidCommission    Decimal @default(0) @db.Decimal(12, 2)
+  // Statistics (Simplified as requested)
+  totalUsersAdded Int @default(0)
+  activeUsers     Int @default(0)
+  premiumUsers    Int @default(0)
 
   // Status
   status   AgentStatus @default(ACTIVE)
   isActive Boolean     @default(true)
 
-  // Bank Details (for payouts)
-  bankName          String? @db.VarChar(100)
-  accountHolderName String? @db.VarChar(200)
-  accountNumber     String? @db.VarChar(50)
-  ifscCode          String? @db.VarChar(20)
-  branchName        String? @db.VarChar(100)
-  upiId             String? @db.VarChar(100)
-
   // Documents (stored locally)
-  idProofUrl         String? @db.Text // /uploads/documents/agents/{agentId}/id-proof.pdf
-  addressProofUrl    String? @db.Text
-  panCardUrl         String? @db.Text
-  cancelledChequeUrl String? @db.Text
+  idProofUrl      String? @db.Text // /uploads/documents/agents/{agentId}/id-proof.pdf
+  addressProofUrl String? @db.Text
+  panCardUrl      String? @db.Text
 
   // Admin Notes
   notes         String? @db.Text
@@ -504,10 +481,7 @@ model Agent {
   deletedAt DateTime?
 
   // Relations
-  users        User[]
-  commissions  AgentCommission[]
-  payouts      AgentPayout[]
-  activityLogs AgentActivityLog[]
+  users User[]
 
   @@index([agentCode])
   @@index([status, isActive])
@@ -517,137 +491,6 @@ model Agent {
   @@index([createdAt(sort: Desc)])
   @@index([totalUsersAdded(sort: Desc)])
   @@map("agents")
-}
-
-// ============================================
-// AGENT COMMISSIONS
-// ============================================
-
-model AgentCommission {
-  id      Int   @id @default(autoincrement())
-  agentId Int
-  agent   Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  userId         Int?
-  subscriptionId Int?
-
-  // Transaction Details
-  transactionType String @db.VarChar(30) // SUBSCRIPTION, RENEWAL, BONUS
-  description     String @db.Text
-
-  // Amount
-  baseAmount       Decimal @db.Decimal(10, 2)
-  commissionRate   Decimal @db.Decimal(5, 2)
-  commissionAmount Decimal @db.Decimal(10, 2)
-
-  // Deductions
-  tdsPercentage Decimal @default(5.00) @db.Decimal(5, 2)
-  tdsAmount     Decimal @default(0) @db.Decimal(10, 2)
-  serviceFee    Decimal @default(0) @db.Decimal(10, 2)
-  netCommission Decimal @db.Decimal(10, 2)
-
-  // Status
-  status String @default("PENDING") @db.VarChar(20)
-
-  // Payment Details
-  payoutBatchId Int?
-  payout        AgentPayout? @relation(fields: [payoutBatchId], references: [id], onDelete: SetNull)
-  paidAt        DateTime?
-
-  // Admin Actions
-  approvedBy   Int?
-  approvedAt   DateTime?
-  approvalNote String?   @db.Text
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([agentId, status])
-  @@index([userId])
-  @@index([status, createdAt(sort: Desc)])
-  @@map("agent_commissions")
-}
-
-// ============================================
-// AGENT PAYOUTS
-// ============================================
-
-model AgentPayout {
-  id      Int   @id @default(autoincrement())
-  agentId Int
-  agent   Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  // Payout Details
-  payoutBatchNumber String   @unique @db.VarChar(50)
-  periodStart       DateTime @db.Date // ✅ FIXED
-  periodEnd         DateTime @db.Date // ✅ FIXED
-
-  // Amounts
-  totalCommission Decimal @db.Decimal(12, 2)
-  totalTds        Decimal @default(0) @db.Decimal(12, 2)
-  totalDeductions Decimal @default(0) @db.Decimal(12, 2)
-  netPayoutAmount Decimal @db.Decimal(12, 2)
-
-  // Bank Details (snapshot at payout time)
-  bankAccountNumber String? @db.VarChar(50)
-  bankIfscCode      String? @db.VarChar(20)
-  upiId             String? @db.VarChar(100)
-
-  // Transaction
-  transactionId   String?   @db.VarChar(100)
-  transactionDate DateTime?
-
-  // Payment Details
-  paymentMethod    String? @db.VarChar(30)
-  paymentStatus    String  @default("PENDING") @db.VarChar(20)
-  paymentReference String? @db.VarChar(100)
-
-  // Invoice (stored locally)
-  invoiceNumber String? @db.VarChar(50)
-  invoiceUrl    String? @db.Text // /uploads/exports/invoices/agent-{agentId}-{batchNumber}.pdf
-
-  // Admin
-  processedBy Int?
-  processedAt DateTime?
-  adminNotes  String?   @db.Text
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  commissions AgentCommission[]
-
-  @@index([agentId])
-  @@index([payoutBatchNumber])
-  @@index([paymentStatus])
-  @@index([createdAt(sort: Desc)])
-  @@map("agent_payouts")
-}
-
-// ============================================
-// AGENT ACTIVITY LOGS
-// ============================================
-
-model AgentActivityLog {
-  id      Int   @id @default(autoincrement())
-  agentId Int
-  agent   Agent @relation(fields: [agentId], references: [id], onDelete: Cascade)
-
-  activityType String  @db.VarChar(50)
-  description  String  @db.Text
-  metadata     String? @db.Text // JSON
-
-  ipAddress String? @db.Inet
-  userAgent String? @db.Text
-
-  createdAt DateTime @default(now())
-
-  @@index([agentId])
-  @@index([activityType])
-  @@index([createdAt(sort: Desc)])
-  @@map("agent_activity_logs")
 }
 
 // ============================================
