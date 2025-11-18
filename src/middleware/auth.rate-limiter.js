@@ -6,7 +6,7 @@ import { HTTP_STATUS } from '../utils/constants.js';
  * 10 requests per 15 minutes per IP
  */
 export const authLimiter = rateLimit({
-  windowMs: 2 * 60 * 1000, // 15 minutes
+  windowMs: 15 * 60 * 1000, // 15 minutes
   max: 200, // Limit each IP to 200 auth requests per window
   message: {
     success: false,
