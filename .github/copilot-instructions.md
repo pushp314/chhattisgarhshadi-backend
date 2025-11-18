@@ -1,258 +1,65 @@
-# Chhattisgarh Shadi Backend - AI Coding Instructions
+# AI Coding Agent Instructions for Chhattisgarh Shaadi Backend
 
-## Architecture Overview
+This document provides essential guidelines for contributing to this project. Following these patterns will ensure consistency and leverage the existing architecture.
 
-Matrimonial platform API for Chhattisgarh region: **Express.js + Prisma ORM + PostgreSQL**. Clean layered architecture: routes → controllers → services → database.
+## 1. Core Technology Stack
 
-### Key Components
-- **Authentication**: Google OAuth 2.0 ONLY (no passwords). Phone OTP is one-time verification, NOT for login
-- **Real-time**: Socket.io with JWT handshake auth, user presence via `onlineUsers` Map (Set-based for multi-device), room-based emits (`io.to('user:X')`)
-- **Storage**: AWS S3 with presigned URLs for private files. Check `AWS_S3_BUCKET` env to determine if S3 is configured
-- **Payments**: Razorpay only (no other gateways)
-- **Notifications**: Multi-channel (SMS via MSG91, FCM push, in-app, email)
-- **Multi-language**: `EN/HI/CG` enums throughout (User.preferredLanguage, Notification.language)
+- **Framework**: Node.js with Express.
+- **Database ORM**: Prisma.
+- **Authentication**: JWT-based with Google Sign-In support.
+- **Validation**: Zod for request data validation.
 
-### Critical Database Patterns
-- **User vs Profile separation**: User model = auth/security, Profile model = all user-facing data
-- **Chhattisgarh-specific fields**: `nativeDistrict`, `speaksChhattisgarhi`, `nativeVillage` in Profile
-- **Agent system**: Admin-created only, users link via `agentCodeUsed`, commissions auto-calculated
-- **Soft deletes**: Always check `deletedAt: null`, never hard delete user data
-- **Active/banned checks**: Filter with `isActive: true, isBanned: false, deletedAt: null`
+## 2. Project Structure
 
-## Development Workflow
+The application follows a service-oriented architecture. Please adhere to this separation of concerns:
 
-### Server & Database
-```bash
-npm run dev                  # Development (nodemon auto-reload)
-npm start                    # Production
-npm run prisma:studio        # Database GUI browser
-npm run prisma:generate      # Regenerate client after schema changes
-npm run prisma:migrate       # Create/apply migration
-```
+- `src/controllers`: Handle incoming HTTP requests, call service-layer functions, and send back responses. Controllers should not contain direct database queries or complex business logic.
+- `src/services`: Contain all business logic. This is where you interact with the database via Prisma and implement the core features.
+- `src/routes`: Define all API endpoints and link them to controller functions. They also apply necessary middleware (e.g., authentication, validation).
+- `src/validation`: Contain all Zod schemas for validating request bodies, query parameters, etc.
+- `src/middleware`: Holds all Express middleware, such as the global error handler and authentication checks.
+- `src/config`: For application configuration, including the Prisma client initialization.
 
-### API Route Structure
-All routes are mounted at `/api/v1` prefix (see `src/app.js`):
-- Auth: `POST /api/v1/auth/google`, `POST /api/v1/auth/refresh`, `POST /api/v1/auth/logout`
-- Users: `/api/v1/users/*`
-- Profiles: `/api/v1/profiles/*`
-- Matches: `/api/v1/matches/*`
-- Messages: `/api/v1/messages/*`
-- Health: `GET /api/v1/health`
+## 3. Database Interactions with Prisma
 
-### Critical Environment Variables
-Minimum for local dev (see `.env.example`):
-- `DATABASE_URL` - PostgreSQL connection string
-- `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET` - Min 32 chars each
-- `GOOGLE_CLIENT_ID` - For mobile/frontend Google Sign-In verification
-- `GOOGLE_CLIENT_SECRET` - Optional (only if using auth code flow)
-- `CORS_ORIGIN` - Frontend URL(s), comma-separated or `*`
-- `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` - Required (S3 or set to dummy values)
-- `MSG91_AUTH_KEY`, `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` - Required
+All database operations must go through the Prisma client.
 
-**Note**: Mobile OAuth flow means frontend handles Google OAuth UI and sends tokens to backend at `/api/v1/auth/google`
+- **Prisma Client**: A singleton Prisma client is initialized and exported from `src/config/prisma.js`. Always import it for use in service files:
+  ```javascript
+  import { prisma } from "@/config/prisma";
+  ```
 
-### Testing Auth Flow
-**Mobile/Frontend Flow** (current implementation):
-1. Frontend obtains Google authorization code or ID token
-2. Send POST request to `http://localhost:8080/api/v1/auth/google`:
-   ```json
-   {
-     "authorizationCode": "GOOGLE_AUTH_CODE",
-     "redirectUri": "com.chhattisgarhshaadi.app://oauth2redirect"
-   }
-   ```
-3. Extract `accessToken` from response
-4. Use in API requests: `Authorization: Bearer {accessToken}`
+- **Creating Records**: Use Prisma's declarative API to create new database entries. The following example creates a new user:
+  ```javascript
+  // From: src/services/auth.service.js
+  const newUser = await prisma.user.create({
+    data: {
+      email: 'user@example.com',
+      googleId: 'some-google-id',
+      authProvider: 'GOOGLE',
+      // ... other fields
+    },
+  });
+  ```
 
-**Note**: Backend uses mobile OAuth flow, not web redirect flow. All routes are under `/api/v1` prefix.
+- **Transactions**: For operations that must succeed or fail together, use `prisma.$transaction`. This ensures atomicity.
+  ```javascript
+  // From: src/services/auth.service.js
+  await prisma.$transaction([
+    prisma.phoneVerification.deleteMany({ where: { userId } }),
+    prisma.phoneVerification.create({ data: { /* ... */ } })
+  ]);
+  ```
 
-## Coding Conventions
+## 4. Error Handling
 
-### Error Handling Pattern
-Always use `asyncHandler` from `src/utils/asyncHandler.js` to wrap async route handlers:
-```javascript
-import { asyncHandler } from '../utils/asyncHandler.js';
+- Use the custom `ApiError` class from `src/utils/ApiError.js` for throwing expected errors within services.
+- All routes are wrapped in an `asyncHandler` utility that catches errors and passes them to the central error-handling middleware (`src/middleware/error-handler.middleware.js`). You do not need to write `try...catch` blocks in controllers.
 
-export const getProfile = asyncHandler(async (req, res) => {
-  // Your code - errors auto-caught
-});
-```
+## 5. Local Development Commands
 
-Throw errors using `ApiError` class from `src/utils/ApiError.js`:
-```javascript
-import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS } from '../utils/constants.js';
+Use the following npm scripts for common development tasks:
 
-throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Profile not found');
-```
-
-### Authentication Middleware Chain
-Located in `src/middleware/auth.js`:
-- `authenticate` - Basic JWT auth (requires valid token)
-- `requireCompleteProfile` - Checks profile exists and ≥50% complete
-- `requirePhoneVerified` - Ensures phone verification done
-- `requireSubscription` - Checks active subscription
-- `requireAdmin` - Admin/SuperAdmin role check
-
-**Always** chain auth middleware before protected routes:
-```javascript
-router.get('/matches', authenticate, requireCompleteProfile, getMatches);
-```
-
-### Validation with Zod
-All validation schemas in `src/validation/*.validation.js`. Zod parses `req.body`, `req.query`, `req.params`:
-```javascript
-import { z } from 'zod';
-import { GENDER, RELIGION } from '../utils/constants.js';
-
-export const createProfileSchema = z.object({
-  body: z.object({
-    firstName: z.string().min(2),
-    gender: z.nativeEnum(GENDER),  // Always use enums from constants
-    religion: z.nativeEnum(RELIGION),
-  }).strict(),  // .strict() rejects extra fields
-});
-```
-
-Apply with `validate` middleware from `src/middleware/validate.middleware.js`:
-```javascript
-import { validate } from '../middleware/validate.middleware.js';
-import { createProfileSchema } from '../validation/profile.validation.js';
-
-router.post('/profiles', authenticate, validate(createProfileSchema), createProfile);
-```
-
-### Constants Usage
-Import enums from `src/utils/constants.js` - never use magic strings:
-```javascript
-import { LANGUAGE, MEDIA_TYPES, SOCKET_EVENTS } from '../utils/constants.js';
-
-// Good
-notification.language = LANGUAGE.HI;
-media.type = MEDIA_TYPES.PROFILE_PHOTO;
-
-// Bad
-notification.language = 'HI';  // Don't hardcode
-```
-
-### Prisma Query Patterns
-- Always use `prisma` from `src/config/database.js`
-- Soft deletes: Add `deletedAt: null` to WHERE clauses
-- Always include related data needed: `include: { profile: true, agent: true }`
-- For user queries, check `isActive: true, isBanned: false`
-```javascript
-import prisma from '../config/database.js';
-
-const user = await prisma.user.findUnique({
-  where: { id: userId, isActive: true, isBanned: false, deletedAt: null },
-  include: { profile: true },  // Include related data
-});
-```
-
-### File Upload Flow
-Uses **multer with memory storage** → **AWS S3**:
-1. Middleware: `uploadProfilePhoto` or `uploadProfilePhotos` from `src/middleware/upload.js` (multer memory storage)
-2. Service: `upload.service.js` handles S3 upload with Sharp (resize to 1200x1200, compress, generate 300x300 thumbnails)
-3. Public vs Private: Profile photos are public (`ACL: 'public-read'`), documents are private (use presigned URLs via `getPresignedUrl()`)
-4. Store S3 keys in `media` table with `MediaType` enum (from `constants.js`)
-5. URL handling: Public files get direct S3 URLs, private files require presigned URLs (1-hour expiry default)
-6. Extract S3 keys from URLs using `extractKeyFromUrl()` before deletion
-
-### Socket.io Real-time
-Socket handler in `src/socket/index.js`:
-- Authentication via JWT token in handshake (`socket.handshake.auth.token` or `socket.handshake.query.token`)
-- JWT payload uses `decoded.id` (NOT `decoded.userId`) - set as `socket.userId`
-- User presence tracking: `onlineUsers` is a Map<userId, Set<socketId>> for multi-device support
-- User goes online only when first socket connects, offline when last socket disconnects
-- Always emit to rooms: `io.to(\`user:\${userId}\`).emit(event, data)` (NOT directly to `socket.id`)
-- Socket events defined in `SOCKET_EVENTS` constant (MESSAGE_RECEIVED, USER_ONLINE, etc.)
-- Each user auto-joins room `user:${userId}` on connection
-
-Key patterns:
-```javascript
-// Emit to specific user (handles multiple devices)
-io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
-
-// Check online status (from socket/index.js)
-import { isUserOnline, getSocketIoInstance } from '../socket/index.js';
-const online = isUserOnline(userId);
-const io = getSocketIoInstance();
-```
-
-## Project-Specific Features
-
-### Language Support
-- Every notification/content has `language` field (EN/HI/CG enum)
-- Users have `preferredLanguage` in User model
-- Subscription plans have multi-language names: `nameEn`, `nameHi`, `nameCg`
-- Always respect user's `preferredLanguage` when sending communications
-
-### Chhattisgarh Regional Features
-When working on profile/search features, prioritize these fields:
-- `nativeDistrict` - Native Chhattisgarh district
-- `speaksChhattisgarhi` - Boolean flag for language
-- `nativeTehsil`, `nativeVillage` - Granular location
-- Partner preferences include `mustSpeakChhattisgarhi` filter
-
-### Privacy & Settings
-Complex privacy system with 6+ settings models:
-- `ProfilePrivacySettings` - What profile fields are visible
-- `CommunicationPreferences` - Who can contact user
-- `SearchVisibilitySettings` - Search/incognito controls
-- `PhotoPrivacySettings` - Per-photo watermark/blur controls
-- `NotificationPreferences` - Channel preferences (SMS/Email/Push/In-app)
-
-When adding features affecting user data, check relevant privacy settings first.
-
-### Agent Commission System
-Agents are **admin-created only** (not self-service):
-- Users link to agents via `agentCodeUsed` field during registration
-- `AgentCommission` records auto-created on user subscriptions
-- Payouts managed in batches via `AgentPayout`
-- All agent actions logged in `AgentActivityLog`
-
-## Testing & Debugging
-
-### Logs
-Winston logger at `src/config/logger.js`:
-- Dev: Console + `logs/combined.log`
-- Production: File-based with rotation
-- Always log important actions: `logger.info('User logged in:', userId)`
-
-### Testing API Endpoints
-```bash
-# Health check
-curl http://localhost:8080/api/v1/health
-
-# Test auth (requires Google token from frontend)
-curl -X POST http://localhost:8080/api/v1/auth/google \
-  -H "Content-Type: application/json" \
-  -d '{"authorizationCode": "YOUR_GOOGLE_AUTH_CODE"}'
-
-# Use access token in subsequent requests
-curl http://localhost:8080/api/v1/users/me \
-  -H "Authorization: Bearer YOUR_ACCESS_TOKEN"
-```
-
-### Common Issues
-- **Prisma Client outdated**: Run `npm run prisma:generate`
-- **Migration issues**: Check `prisma/migrations/` and verify Postgres connection
-- **Socket auth fails**: Ensure token passed in `auth.token` or `query.token` on handshake
-- **File upload errors**: Check if S3 configured OR `uploads/` directory exists with write permissions
-
-## DO NOT
-- ❌ Add password authentication (Google OAuth only)
-- ❌ Use phone/OTP for login (only for one-time verification)
-- ❌ Hard-delete user data (always soft delete with `deletedAt`)
-- ❌ Skip authentication middleware on protected routes
-- ❌ Use magic strings instead of constants
-- ❌ Modify `profileCompleteness`, `isVerified` in user-facing APIs (admin only)
-- ❌ Emit socket events to single `socket.id` (use rooms: `io.to('user:X')`)
-
-## Key Files Reference
-- `prisma/schema.prisma` - Complete database schema with all enums
-- `src/utils/constants.js` - All enums, status codes, messages
-- `src/middleware/auth.js` - Authentication middleware chain
-- `src/socket/index.js` - Real-time messaging setup
-- `src/utils/asyncHandler.js` - Error handling wrapper
-- `src/validation/*.validation.js` - Zod schemas for each domain
+- `npm run dev`: Starts the server in development mode with Nodemon for auto-reloading.
+- `npm run prisma:migrate`: Applies new database migrations.
+- `npm run prisma:generate`: Generates the Prisma Client based on the schema.
