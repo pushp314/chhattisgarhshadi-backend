@@ -11,6 +11,7 @@ import { logger } from './config/logger.js';
 import requestIdMiddleware from './middleware/requestId.middleware.js';
 import { rateLimiter } from './middleware/rate-limiter.middleware.js';
 import { errorHandler } from './middleware/error-handler.middleware.js';
+import { env } from './config/env.js';
 
 const app = express();
 
@@ -27,17 +28,34 @@ if (process.env.NODE_ENV === 'production') {
   }));
 }
 
-// CORS (allow all in development, restrict in production)
+// CORS - More secure configuration
+const allowedOrigins = env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',').map(o => o.trim()) : [];
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? (process.env.CORS_ORIGIN || '*').split(',').map(o => o.trim())
-    : '*',
+  origin: (origin, callback) => {
+    // In development, if no origins are specified, allow everything.
+    if (process.env.NODE_ENV !== 'production' && allowedOrigins.length === 0) {
+      return callback(null, true);
+    }
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    // Check if the origin is in our allowed list
+    if (allowedOrigins.indexOf(origin) === -1) {
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
+    }
+    
+    return callback(null, true);
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400, // 24 hours - cache preflight requests
 };
 app.use(cors(corsOptions));
+
 
 // Parsers (with size limits to prevent DoS)
 app.use(express.json({ limit: '10mb' }));
