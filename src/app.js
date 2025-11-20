@@ -9,6 +9,8 @@ import hpp from 'hpp';
 import routes from './routes/index.js';
 import { logger } from './config/logger.js';
 import requestIdMiddleware from './middleware/requestId.middleware.js';
+import { rateLimiter } from './middleware/rate-limiter.middleware.js';
+import { errorHandler } from './middleware/error-handler.middleware.js';
 
 const app = express();
 
@@ -66,6 +68,9 @@ app.use(compression({
   }
 }));
 
+// Rate limiting
+app.use(rateLimiter);
+
 // Logging
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
@@ -104,12 +109,6 @@ app.use((req, res) => {
 });
 
 // Error Handler
-app.use((err, req, res, _next) => {
-  logger.error('Error:', err);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal server error',
-  });
-});
+app.use(errorHandler);
 
 export default app;
