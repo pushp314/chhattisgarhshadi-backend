@@ -2,7 +2,7 @@ import { Router } from 'express';
 import authController from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.middleware.js';
-import { authLimiter, otpLimiter } from '../middleware/auth.rate-limiter.js';
+import { otpLimiter } from '../middleware/auth.rate-limiter.js';
 import {
   googleMobileAuthSchema,
   refreshTokenSchema,
@@ -13,8 +13,7 @@ import {
 
 const router = Router();
 
-// Apply a strict rate limiter to all auth routes
-router.use(authLimiter);
+// Rate limiter removed for authentication routes
 
 
 router.post(
