@@ -15,6 +15,10 @@ import { env } from './config/env.js';
 
 const app = express();
 
+// Trust proxy is required when running behind a load balancer (like Render, Heroku, AWS ELB)
+// This fixes the "X-Forwarded-For" header validation error from express-rate-limit
+app.set('trust proxy', 1);
+
 // Request ID tracking (for debugging and logging)
 app.use(requestIdMiddleware);
 
@@ -46,7 +50,7 @@ const corsOptions = {
       const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
       return callback(new Error(msg), false);
     }
-    
+
     return callback(null, true);
   },
   credentials: true,

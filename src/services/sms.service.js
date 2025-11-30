@@ -1,10 +1,10 @@
 import axios from 'axios';
-import {logger} from '../config/logger.js';
+import { logger } from '../config/logger.js';
 
 class SMSService {
   constructor() {
     this.authKey = process.env.MSG91_AUTH_KEY;
-    this.senderId = process.env.MSG9J_SENDER_ID || 'CGSHAD';
+    this.senderId = process.env.MSG9J_SENDER_ID || 'APPNIT';
     this.templateId = process.env.MSG91_TEMPLATE_ID;
     this.baseUrl = 'https://control.msg91.com/api/v5';
   }
@@ -13,8 +13,8 @@ class SMSService {
     try {
       if (!this.authKey) {
         logger.warn('MSG91_AUTH_KEY not configured, OTP not sent');
-        // In development, just log the OTP
-        if (process.env.NODE_ENV === 'development') {
+        // In development OR if explicitly enabled, log the OTP
+        if (process.env.NODE_ENV === 'development' || process.env.DEBUG_OTP === 'true') {
           logger.info(`📱 OTP for ${countryCode}${phone}: ${otp}`);
           return { success: true, dev: true };
         }
@@ -39,8 +39,8 @@ class SMSService {
       );
 
       if (!response.data || response.data.type !== 'success') {
-         logger.error('SMS sending failed:', response.data.message || 'Unknown MSG91 error');
-         throw new Error('Failed to send OTP');
+        logger.error('SMS sending failed:', response.data.message || 'Unknown MSG91 error');
+        throw new Error('Failed to send OTP');
       }
 
       logger.info(`✅ OTP sent to ${countryCode}${phone}`);
@@ -48,13 +48,13 @@ class SMSService {
 
     } catch (error) {
       logger.error('SMS sending failed:', error.message);
-      
+
       // In development, still allow OTP flow
       if (process.env.NODE_ENV === 'development') {
         logger.info(`📱 DEV OTP for ${countryCode}${phone}: ${otp}`);
         return { success: true, dev: true };
       }
-      
+
       throw new Error('Failed to send OTP');
     }
   }
