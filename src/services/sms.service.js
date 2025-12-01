@@ -21,15 +21,21 @@ class SMSService {
         throw new Error('SMS service not configured');
       }
 
+      // Log the request payload for debugging
+      const payload = {
+        sender: this.senderId,
+        short_url: '0',
+        mobiles: countryCode + phone,
+        var1: otp,
+        template_id: this.templateId,
+      };
+
+      logger.info(`📤 Sending OTP via MSG91 to ${countryCode}${phone}`);
+      logger.info(`MSG91 Payload: ${JSON.stringify(payload)}`);
+
       const response = await axios.post(
         `${this.baseUrl}/flow/`,
-        {
-          sender: this.senderId,
-          short_url: '0',
-          mobiles: countryCode + phone,
-          var1: otp,
-          template_id: this.templateId,
-        },
+        payload,
         {
           headers: {
             'authkey': this.authKey,
@@ -38,12 +44,22 @@ class SMSService {
         }
       );
 
+      // Log the full response for debugging
+      logger.info(`MSG91 Response: ${JSON.stringify(response.data)}`);
+
       if (!response.data || response.data.type !== 'success') {
-        logger.error('SMS sending failed:', response.data.message || 'Unknown MSG91 error');
+        logger.error('❌ SMS sending failed:', response.data?.message || 'Unknown MSG91 error');
+        logger.error('Full MSG91 error response:', JSON.stringify(response.data));
         throw new Error('Failed to send OTP');
       }
 
-      logger.info(`✅ OTP sent to ${countryCode}${phone}`);
+      logger.info(`✅ OTP sent to ${countryCode}${phone} (Request ID: ${response.data.request_id})`);
+
+      // Also log the OTP if DEBUG_OTP is enabled
+      if (process.env.DEBUG_OTP === 'true') {
+        logger.info(`📱 DEBUG OTP for ${countryCode}${phone}: ${otp}`);
+      }
+
       return { success: true, messageId: response.data.request_id };
 
     } catch (error) {
