@@ -103,10 +103,11 @@ export const createOrder = async (userId, planId) => {
     };
   } catch (error) {
     logger.error('Error in createOrder:', error);
+    logger.error('Error details:', { userId, planId, message: error.message });
     if (error instanceof ApiError) throw error;
     throw new ApiError(
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      'Failed to create payment order'
+      `Failed to create payment order: ${error.message}`
     );
   }
 };
