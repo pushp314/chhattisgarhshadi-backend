@@ -101,7 +101,7 @@ export const getProfileByUserId = async (userId, currentUserId = null) => {
       type: m.type,
       isProfilePicture: m.isDefault,
       // ADDED: Pass privacy settings along
-      privacySettings: m.privacySettings, 
+      privacySettings: m.privacySettings,
     })) || [];
 
     // Add calculated age and transformed media
@@ -114,8 +114,10 @@ export const getProfileByUserId = async (userId, currentUserId = null) => {
     };
   } catch (error) {
     logger.error('Error in getProfileByUserId:', error);
+    logger.error('Error stack:', error.stack); // Add stack trace
+    logger.error('Error details:', { userId, currentUserId, message: error.message }); // Add context
     if (error instanceof ApiError) throw error;
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving profile');
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, `Error retrieving profile: ${error.message}`);
   }
 };
 
@@ -137,7 +139,7 @@ export const updateProfile = async (userId, data) => {
     updatedProfile.profileCompleteness = score;
 
     logger.info(`Profile updated for user: ${userId}`);
-    
+
     return {
       ...updatedProfile,
       age: calculateAge(updatedProfile.dateOfBirth),
@@ -189,8 +191,8 @@ export const searchProfiles = async (query, currentUserId = null) => {
     } = query;
 
     const where = {
-      isPublished: true, 
-      user: { 
+      isPublished: true,
+      user: {
         isActive: true,
         isBanned: false,
       }
@@ -201,7 +203,7 @@ export const searchProfiles = async (query, currentUserId = null) => {
       blockedIds.push(currentUserId);
       where.userId = { notIn: blockedIds };
     }
-    
+
     if (gender) where.gender = gender;
     if (maritalStatus) where.maritalStatus = maritalStatus;
     if (nativeDistrict) where.nativeDistrict = { equals: nativeDistrict, mode: 'insensitive' };
@@ -231,7 +233,7 @@ export const searchProfiles = async (query, currentUserId = null) => {
         take: limit,
         include: {
           user: { select: { id: true, role: true } },
-          media: { 
+          media: {
             where: { type: 'PROFILE_PHOTO', isDefault: true }, // MODIFIED: Only get default profile photo
             include: { privacySettings: true } // Also get its settings
           },
