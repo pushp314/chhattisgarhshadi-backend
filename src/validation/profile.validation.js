@@ -122,7 +122,7 @@ export const createProfileSchema = z.object({
     // All other fields are optional on creation
     ...Object.keys(profileBodyBase)
       .filter(key => ![
-        'firstName', 'lastName', 'dateOfBirth', 'gender', 'maritalStatus', 
+        'firstName', 'lastName', 'dateOfBirth', 'gender', 'maritalStatus',
         'religion', 'motherTongue', 'country', 'state', 'city'
       ].includes(key))
       .reduce((obj, key) => {
@@ -139,7 +139,7 @@ export const updateProfileSchema = z.object({
       obj[key] = profileBodyBase[key].optional();
       return obj;
     }, {})
-  ).strict(), // .strict() prevents users from updating system fields
+  ), // Removed .strict() to allow extra fields (they will be stripped)
 });
 
 export const searchProfilesSchema = z.object({
