@@ -60,7 +60,7 @@ export const uploadToS3 = async (
     logger.error('Error in uploadToS3:', error);
     throw new ApiError(
       HTTP_STATUS.INTERNAL_SERVER_ERROR,
-      'Failed to upload file'
+      `Failed to upload file: ${error.message}` // Expose error for debugging
     );
   }
 };
