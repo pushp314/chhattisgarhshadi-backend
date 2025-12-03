@@ -34,6 +34,9 @@ export const createProfile = async (userId, data) => {
       data: {
         userId,
         ...data,
+        isDraft: false,        // Mark as complete
+        isPublished: true,     // Auto-publish so it appears in searches
+        publishedAt: new Date(), // Set publish timestamp
       },
     });
 
