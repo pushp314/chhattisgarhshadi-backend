@@ -42,13 +42,13 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
     }
     // --- End Block Check ---
 
-    // Check if receiver exists, is active, and has a profile
+    // Check if receiver exists and has a profile
     const receiver = await prisma.user.findUnique({
-      where: { id: receiverId, isActive: true, isBanned: false }, // ADDED: isActive/isBanned check
+      where: { id: receiverId },
       include: { profile: true },
     });
 
-    if (!receiver || !receiver.profile) {
+    if (!receiver || !receiver.isActive || receiver.isBanned || !receiver.profile) {
       throw new ApiError(
         HTTP_STATUS.NOT_FOUND,
         'User not found or profile incomplete'
@@ -79,7 +79,7 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
     });
 
     logger.info(`Match request sent from ${fromUserId} to ${receiverId}`);
-    
+
     // Return the minimal match object, not the full user profiles
     return match;
   } catch (error) {
@@ -201,7 +201,7 @@ export const getSentMatchRequests = async (userId, query) => {
     // --- Block Check [ADDED] ---
     const blockedIds = Array.from(await blockService.getAllBlockedUserIds(userId));
 
-    const where = { 
+    const where = {
       senderId: userId,
       receiverId: { notIn: blockedIds }, // Don't show requests sent to blocked users
     };
@@ -215,8 +215,8 @@ export const getSentMatchRequests = async (userId, query) => {
         skip,
         take: limit,
         include: {
-          receiver: { 
-            select: userPublicSelect, 
+          receiver: {
+            select: userPublicSelect,
           },
         },
         orderBy: {
@@ -252,7 +252,7 @@ export const getReceivedMatchRequests = async (userId, query) => {
     // --- Block Check [ADDED] ---
     const blockedIds = Array.from(await blockService.getAllBlockedUserIds(userId));
 
-    const where = { 
+    const where = {
       receiverId: userId,
       senderId: { notIn: blockedIds }, // Don't show requests from blocked users
     };
@@ -266,7 +266,7 @@ export const getReceivedMatchRequests = async (userId, query) => {
         skip,
         take: limit,
         include: {
-          sender: { 
+          sender: {
             select: userPublicSelect,
           },
         },
@@ -378,7 +378,7 @@ export const deleteMatch = async (matchId, userId) => {
         'You can only delete your own matches'
       );
     }
-    
+
     // No block check needed, user is allowed to delete a match
     // even if the other user is blocked.
 
