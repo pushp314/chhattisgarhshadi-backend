@@ -53,8 +53,9 @@ export const handleWebhook = asyncHandler(async (req, res) => {
  * Get payment by ID
  */
 export const getPaymentById = asyncHandler(async (req, res) => {
-  // req.params.paymentId is pre-validated by Zod
-  const payment = await paymentService.getPaymentById(req.params.paymentId);
+  // Convert paymentId to integer (route params are always strings)
+  const paymentId = parseInt(req.params.paymentId, 10);
+  const payment = await paymentService.getPaymentById(paymentId);
 
   res
     .status(HTTP_STATUS.OK)

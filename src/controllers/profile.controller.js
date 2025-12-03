@@ -79,7 +79,9 @@ export const searchProfiles = asyncHandler(async (req, res) => {
  * Delete a photo
  */
 export const deletePhoto = asyncHandler(async (req, res) => {
-  await profileService.deletePhoto(req.user.id, req.params.mediaId);
+  // Convert mediaId to integer (route params are always strings)
+  const mediaId = parseInt(req.params.mediaId, 10);
+  await profileService.deletePhoto(req.user.id, mediaId);
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, null, 'Photo deleted successfully'));

@@ -7,8 +7,9 @@ import { HTTP_STATUS } from '../utils/constants.js';
  * Get another user's public profile by ID
  */
 export const getUserById = asyncHandler(async (req, res) => {
-  // FIX: Pass req.user.id as the second argument for the block check
-  const user = await userService.getPublicUserById(req.params.id, req.user.id);
+  // Convert id to integer (route params are always strings)
+  const userId = parseInt(req.params.id, 10);
+  const user = await userService.getPublicUserById(userId, req.user.id);
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, user, 'User retrieved successfully'));

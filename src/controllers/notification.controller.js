@@ -21,9 +21,10 @@ export const getMyNotifications = asyncHandler(async (req, res) => {
  * Mark notification as read
  */
 export const markAsRead = asyncHandler(async (req, res) => {
-  // req.params.notificationId is validated and coerced to a number
+  // Convert notificationId to integer (route params are always strings)
+  const notificationId = parseInt(req.params.notificationId, 10);
   const notification = await notificationService.markAsRead(
-    req.params.notificationId,
+    notificationId,
     req.user.id
   );
 
@@ -64,9 +65,10 @@ export const getUnreadCount = asyncHandler(async (req, res) => {
  * Delete notification
  */
 export const deleteNotification = asyncHandler(async (req, res) => {
-  // req.params.notificationId is validated and coerced to a number
+  // Convert notificationId to integer (route params are always strings)
+  const notificationId = parseInt(req.params.notificationId, 10);
   await notificationService.deleteNotification(
-    req.params.notificationId,
+    notificationId,
     req.user.id
   );
 

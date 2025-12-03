@@ -36,9 +36,11 @@ export const getMyEducation = asyncHandler(async (req, res) => {
  * Update an education entry
  */
 export const updateEducation = asyncHandler(async (req, res) => {
+  // Convert id to integer (route params are always strings)
+  const educationId = parseInt(req.params.id, 10);
   const updatedEducation = await educationService.updateEducation(
     req.user.id,
-    req.params.id,
+    educationId,
     req.body
   );
   res
@@ -56,7 +58,9 @@ export const updateEducation = asyncHandler(async (req, res) => {
  * Delete an education entry
  */
 export const deleteEducation = asyncHandler(async (req, res) => {
-  await educationService.deleteEducation(req.user.id, req.params.id);
+  // Convert id to integer (route params are always strings)
+  const educationId = parseInt(req.params.id, 10);
+  await educationService.deleteEducation(req.user.id, educationId);
   res
     .status(HTTP_STATUS.OK)
     .json(

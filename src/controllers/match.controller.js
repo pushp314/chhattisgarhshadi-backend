@@ -22,9 +22,10 @@ export const sendMatchRequest = asyncHandler(async (req, res) => {
  * Accept match request
  */
 export const acceptMatchRequest = asyncHandler(async (req, res) => {
-  // req.params.matchId is now validated by Zod
+  // Convert matchId to integer (route params are always strings)
+  const matchId = parseInt(req.params.matchId, 10);
   const match = await matchService.acceptMatchRequest(
-    req.params.matchId,
+    matchId,
     req.user.id
   );
 
@@ -39,9 +40,10 @@ export const acceptMatchRequest = asyncHandler(async (req, res) => {
  * Reject match request
  */
 export const rejectMatchRequest = asyncHandler(async (req, res) => {
-  // req.params.matchId is now validated by Zod
+  // Convert matchId to integer (route params are always strings)
+  const matchId = parseInt(req.params.matchId, 10);
   const match = await matchService.rejectMatchRequest(
-    req.params.matchId,
+    matchId,
     req.user.id
   );
 
@@ -110,8 +112,9 @@ export const getAcceptedMatches = asyncHandler(async (req, res) => {
  * Delete match
  */
 export const deleteMatch = asyncHandler(async (req, res) => {
-  // req.params.matchId is now validated by Zod
-  await matchService.deleteMatch(req.params.matchId, req.user.id);
+  // Convert matchId to integer (route params are always strings)
+  const matchId = parseInt(req.params.matchId, 10);
+  await matchService.deleteMatch(matchId, req.user.id);
 
   res
     .status(HTTP_STATUS.OK)

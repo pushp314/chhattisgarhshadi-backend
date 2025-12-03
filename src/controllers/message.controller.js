@@ -40,9 +40,11 @@ export const sendMessage = asyncHandler(async (req, res) => {
  * Get conversation with a user
  */
 export const getConversation = asyncHandler(async (req, res) => {
+  // Convert userId to integer (route params are always strings)
+  const otherUserId = parseInt(req.params.userId, 10);
   const result = await messageService.getConversation(
     req.user.id,
-    req.params.userId,
+    otherUserId,
     req.query
   );
 
@@ -74,7 +76,8 @@ export const getAllConversations = asyncHandler(async (req, res) => {
  * Mark messages as read
  */
 export const markMessagesAsRead = asyncHandler(async (req, res) => {
-  const { userId: otherUserId } = req.params;
+  // Convert userId to integer (route params are always strings)
+  const otherUserId = parseInt(req.params.userId, 10);
 
   const result = await messageService.markMessagesAsRead(req.user.id, otherUserId);
 
@@ -96,7 +99,9 @@ export const markMessagesAsRead = asyncHandler(async (req, res) => {
  * Delete message
  */
 export const deleteMessage = asyncHandler(async (req, res) => {
-  await messageService.deleteMessage(req.params.messageId, req.user.id);
+  // Convert messageId to integer (route params are always strings)
+  const messageId = parseInt(req.params.messageId, 10);
+  await messageService.deleteMessage(messageId, req.user.id);
 
   res
     .status(HTTP_STATUS.OK)

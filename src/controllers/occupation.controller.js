@@ -35,9 +35,11 @@ export const getMyOccupations = asyncHandler(async (req, res) => {
  * Update an occupation entry
  */
 export const updateOccupation = asyncHandler(async (req, res) => {
+  // Convert id to integer (route params are always strings)
+  const occupationId = parseInt(req.params.id, 10);
   const updatedOccupation = await occupationService.updateOccupation(
     req.user.id,
-    req.params.id,
+    occupationId,
     req.body
   );
   res
@@ -55,7 +57,9 @@ export const updateOccupation = asyncHandler(async (req, res) => {
  * Delete an occupation entry
  */
 export const deleteOccupation = asyncHandler(async (req, res) => {
-  await occupationService.deleteOccupation(req.user.id, req.params.id);
+  // Convert id to integer (route params are always strings)
+  const occupationId = parseInt(req.params.id, 10);
+  await occupationService.deleteOccupation(req.user.id, occupationId);
   res
     .status(HTTP_STATUS.OK)
     .json(
