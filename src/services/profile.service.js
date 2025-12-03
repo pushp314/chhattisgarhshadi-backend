@@ -237,8 +237,8 @@ export const searchProfiles = async (query, currentUserId = null) => {
         include: {
           user: { select: { id: true, role: true } },
           media: {
-            where: { type: 'PROFILE_PHOTO', isDefault: true }, // MODIFIED: Only get default profile photo
-            include: { privacySettings: true } // Also get its settings
+            where: { type: 'PROFILE_PHOTO', isDefault: true },
+            include: { privacySettings: true }
           },
         },
         orderBy: {
@@ -250,9 +250,30 @@ export const searchProfiles = async (query, currentUserId = null) => {
       prisma.profile.count({ where }),
     ]);
 
-    const profilesWithAge = profiles.map((profile) => ({
-      ...profile,
-      age: calculateAge(profile.dateOfBirth),
+    // Add match status for each profile
+    const profilesWithAge = await Promise.all(profiles.map(async (profile) => {
+      let matchStatus = null;
+
+      if (currentUserId) {
+        // Check if there's a match request between current user and this profile
+        const matchRequest = await prisma.matchRequest.findFirst({
+          where: {
+            OR: [
+              { senderId: currentUserId, receiverId: profile.userId },
+              { senderId: profile.userId, receiverId: currentUserId },
+            ],
+          },
+          select: { status: true },
+        });
+
+        matchStatus = matchRequest?.status || null;
+      }
+
+      return {
+        ...profile,
+        age: calculateAge(profile.dateOfBirth),
+        matchStatus, // 'PENDING', 'ACCEPTED', 'REJECTED', or null
+      };
     }));
 
     const pagination = getPaginationMetadata(page, limit, total);
