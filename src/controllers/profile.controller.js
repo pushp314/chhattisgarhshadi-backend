@@ -33,7 +33,9 @@ export const getMyProfile = asyncHandler(async (req, res) => {
  * Get profile by user ID
  */
 export const getProfileByUserId = asyncHandler(async (req, res) => {
-  const profile = await profileService.getProfileByUserId(req.params.userId);
+  // Convert userId to integer (route params are always strings)
+  const userId = parseInt(req.params.userId, 10);
+  const profile = await profileService.getProfileByUserId(userId, req.user?.id);
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, profile, 'Profile retrieved successfully'));
