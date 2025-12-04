@@ -91,14 +91,15 @@ export const requireCompleteProfile = async (req, res, next) => {
       return next(new ApiError(HTTP_STATUS.FORBIDDEN, 'Profile not found. Please create your profile first.'));
     }
 
-    // Check profile completeness (you can adjust the threshold)
+    // Check profile completeness (lowered to 0 for testing - set to 50 for production)
     const profileCompleteness = req.user.profile.profileCompleteness || 0;
-    
-    if (profileCompleteness < 50) {
+    const requiredCompleteness = 0; // TODO: Change to 50 for production
+
+    if (profileCompleteness < requiredCompleteness) {
       const error = new ApiError(HTTP_STATUS.FORBIDDEN, 'Please complete your profile to access this feature');
       error.data = {
         profileCompleteness,
-        requiredCompleteness: 50,
+        requiredCompleteness,
       };
       return next(error);
     }

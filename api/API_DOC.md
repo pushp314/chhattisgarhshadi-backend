@@ -149,7 +149,7 @@ Content-Type: application/json
   "firstName": "Rahul",
   "lastName": "Sharma",
   "gender": "MALE",
-  "dateOfBirth": "1995-05-15",
+  "dateOfBirth": "1995-05-15T00:00:00.000Z",
   "maritalStatus": "NEVER_MARRIED",
   "religion": "HINDU",
   "caste": "Brahmin",
@@ -207,10 +207,13 @@ Authorization: Bearer {{accessToken}}
 Content-Type: application/json
 
 {
-  "jobTitle": "Senior Developer",
-  "company": "TCS",
+  "companyName": "TCS",
+  "designation": "Senior Developer",
+  "employmentType": "FULL_TIME",
   "industry": "IT",
-  "isCurrent": true
+  "annualIncome": "10-15 LPA",
+  "isCurrent": true,
+  "location": "Raipur"
 }
 ```
 
