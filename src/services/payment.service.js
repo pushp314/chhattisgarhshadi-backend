@@ -57,6 +57,8 @@ export const createOrder = async (userId, planId) => {
     });
 
     // 3. Create a PENDING Payment record linked to the subscription
+    // Generate a unique transaction ID upfront
+    const transactionId = `txn_${Date.now()}_${userId}_${planId}`;
     const payment = await prisma.payment.create({
       data: {
         userId,
@@ -64,6 +66,7 @@ export const createOrder = async (userId, planId) => {
         amount,
         currency: 'INR',
         status: PAYMENT_STATUS.PENDING,
+        transactionId, // Required field
         // We will add razorpayOrderId after creating the order
       },
     });
