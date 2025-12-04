@@ -32,11 +32,16 @@ if (process.env.NODE_ENV === 'production') {
   }));
 }
 
-// CORS - More secure configuration
+// CORS - Fixed configuration
 const allowedOrigins = env.CORS_ORIGIN ? env.CORS_ORIGIN.split(',').map(o => o.trim()) : [];
 
 const corsOptions = {
   origin: (origin, callback) => {
+    // If CORS_ORIGIN is '*', allow all origins
+    if (allowedOrigins.includes('*')) {
+      return callback(null, true);
+    }
+
     // In development, if no origins are specified, allow everything.
     if (process.env.NODE_ENV !== 'production' && allowedOrigins.length === 0) {
       return callback(null, true);
@@ -55,7 +60,7 @@ const corsOptions = {
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   maxAge: 86400, // 24 hours - cache preflight requests
 };
 app.use(cors(corsOptions));
