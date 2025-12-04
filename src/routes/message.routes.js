@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { messageController } from '../controllers/message.controller.js';
-import { authenticate, requireCompleteProfile } from '../middleware/auth.js';
+import { authenticate, requireCompleteProfile, requireSubscription } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.middleware.js';
 import {
   sendMessageSchema,
@@ -14,7 +14,8 @@ const router = Router();
 // All routes require authentication and a complete profile
 router.use(authenticate, requireCompleteProfile);
 
-router.post('/', validate(sendMessageSchema), messageController.sendMessage);
+// Sending messages requires PREMIUM subscription
+router.post('/', requireSubscription, validate(sendMessageSchema), messageController.sendMessage);
 
 
 router.get('/conversations', messageController.getAllConversations);
