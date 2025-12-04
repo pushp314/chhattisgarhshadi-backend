@@ -46,12 +46,32 @@ export const sendMessage = async (senderId, receiverId, content) => {
 
     // Check if receiver exists and is active
     const receiver = await prisma.user.findUnique({
-      where: { id: receiverId, isActive: true, isBanned: false }, // ADDED: isActive/isBanned
+      where: { id: receiverId, isActive: true, isBanned: false },
     });
 
     if (!receiver) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Receiver not found');
     }
+
+    // --- Receiver Subscription Check [ADDED] ---
+    // Both users must have premium to chat
+    const receiverSubscription = await prisma.userSubscription.findFirst({
+      where: {
+        userId: receiverId,
+        status: 'ACTIVE',
+        endDate: {
+          gt: new Date(),
+        },
+      },
+    });
+
+    if (!receiverSubscription) {
+      throw new ApiError(
+        HTTP_STATUS.FORBIDDEN,
+        'This user does not have an active premium subscription. Both users need premium to chat.'
+      );
+    }
+    // --- End Receiver Subscription Check ---
 
     const message = await prisma.message.create({
       data: {
@@ -299,7 +319,7 @@ export const deleteMessage = async (messageId, userId) => {
         'You can only delete your own messages'
       );
     }
-    
+
     // No block check needed - user is allowed to delete their *own* messages.
 
     // We will just mark as deleted for now, so the receiver can still see it.
