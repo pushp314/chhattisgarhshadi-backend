@@ -62,10 +62,39 @@ export const deleteAgent = asyncHandler(async (req, res) => {
     .json(new ApiResponse(HTTP_STATUS.OK, null, 'Agent deleted successfully'));
 });
 
+/**
+ * [Admin] Get all users registered by a specific agent
+ */
+export const getUsersByAgent = asyncHandler(async (req, res) => {
+  const result = await agentService.getUsersByAgent(
+    parseInt(req.params.agentId),
+    req.query
+  );
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, result, 'Agent users retrieved successfully')
+    );
+});
+
+/**
+ * [Admin] Get agent statistics for commission calculation
+ */
+export const getAgentStats = asyncHandler(async (req, res) => {
+  const stats = await agentService.getAgentStats(parseInt(req.params.agentId));
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, stats, 'Agent stats retrieved successfully')
+    );
+});
+
 export const agentController = {
   createAgent,
   getAllAgents,
   getAgentById,
   updateAgent,
   deleteAgent,
+  getUsersByAgent,
+  getAgentStats,
 };

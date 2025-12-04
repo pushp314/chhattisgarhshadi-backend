@@ -14,6 +14,8 @@ import {
 
 // ADDED: Import new agent routes
 import agentRoutes from './agent.routes.js';
+// ADDED: Import verification routes
+import verificationRoutes from './verification.routes.js';
 
 const router = Router();
 
@@ -86,5 +88,9 @@ router.put(
 // All routes in agentRoutes will be prefixed with /admin/agents
 // and will be protected by the requireAdmin middleware
 router.use('/agents', agentRoutes);
+
+// --- ADDED: Verification Management ---
+// All routes will be prefixed with /admin/verifications
+router.use('/verifications', verificationRoutes);
 
 export default router;

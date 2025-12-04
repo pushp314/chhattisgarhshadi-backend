@@ -85,6 +85,10 @@ router.use('/photos', photoPrivacyRoutes);
 import uploadRoutes from './upload.routes.js';
 router.use('/uploads', uploadRoutes);
 
+// Horoscope Matching routes (Guna Milan)
+import horoscopeRoutes from './horoscope.routes.js';
+router.use('/horoscope', horoscopeRoutes);
+
 // Admin routes
 import adminRoutes from './admin.routes.js';
 router.use('/admin', adminRoutes);
@@ -122,14 +126,14 @@ router.get('/health', async (req, res) => {
           service: 'FCM Push Notifications',
         },
         aws: {
-          status: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_ACCESS_KEY_ID !== 'your-aws-access-key-id' 
-            ? '✅ Configured' 
+          status: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_ACCESS_KEY_ID !== 'your-aws-access-key-id'
+            ? '✅ Configured'
             : '⚠️ Not configured',
           service: 'S3 File Storage',
         },
         msg91: {
           status: process.env.MSG91_AUTH_KEY && process.env.MSG91_AUTH_KEY !== 'your-msg91-auth-key'
-            ? '✅ Configured' 
+            ? '✅ Configured'
             : '⚠️ Not configured',
           service: 'SMS OTP',
         },

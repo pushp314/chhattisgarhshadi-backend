@@ -8,7 +8,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
 class AuthService {
-  
+
   /**
    * Verify Google authorization code (Web-Based OAuth)
    * @param {string} authorizationCode - Authorization code from Google
@@ -108,28 +108,44 @@ class AuthService {
 
       // Create new user
       isNewUser = true;
-      user = await prisma.user.create({
-        data: {
-          email: googleUser.email,
-          googleId: googleUser.googleId,
-          authProvider: 'GOOGLE',
-          profilePicture: googleUser.picture,
-          // isEmailVerified and emailVerifiedAt are set by default in schema.prisma
-          lastLoginAt: new Date(),
-          lastLoginIp: ipAddress,
-          deviceInfo: JSON.stringify(deviceInfo),
 
-          // --- ADDED: Link to agent if code was valid ---
-          agentId: agentId,
-          agentCodeUsed: agentId ? agentCode : null,
-          referredAt: agentId ? new Date() : null,
-          // --- End of Add ---
-        },
-        include: {
-          profile: true,
-        },
+      // Use transaction to atomically create user AND update agent stats
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Create the user
+        const newUser = await tx.user.create({
+          data: {
+            email: googleUser.email,
+            googleId: googleUser.googleId,
+            authProvider: 'GOOGLE',
+            profilePicture: googleUser.picture,
+            lastLoginAt: new Date(),
+            lastLoginIp: ipAddress,
+            deviceInfo: JSON.stringify(deviceInfo),
+            agentId: agentId,
+            agentCodeUsed: agentId ? agentCode : null,
+            referredAt: agentId ? new Date() : null,
+          },
+          include: {
+            profile: true,
+          },
+        });
+
+        // 2. If agent was linked, increment their totalUsersAdded counter
+        if (agentId) {
+          await tx.agent.update({
+            where: { id: agentId },
+            data: {
+              totalUsersAdded: { increment: 1 },
+              activeUsers: { increment: 1 },
+            },
+          });
+          logger.info(`Agent ${agentCode} stats updated: +1 user`);
+        }
+
+        return newUser;
       });
 
+      user = result;
       logger.info(`✅ New user created: ${googleUser.email} (ID: ${user.id})`);
     } else {
       // Update last login

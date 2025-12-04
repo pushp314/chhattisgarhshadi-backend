@@ -10,12 +10,12 @@ const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const agentBodyBase = {
   agentCode: z.string().min(3, 'Agent code is required').max(20),
   agentName: z.string().min(3, 'Agent name is required').max(200),
-  
+
   contactPerson: z.string().max(100).optional().nullable(),
   phone: z.string().regex(phoneRegex, 'Invalid phone number').optional().nullable(),
   email: z.string().email('Invalid email address').max(255).optional().nullable(),
   alternatePhone: z.string().regex(phoneRegex, 'Invalid alternate phone').optional().nullable(),
-  
+
   addressLine1: z.string().max(255).optional().nullable(),
   addressLine2: z.string().max(255).optional().nullable(),
   city: z.string().max(100).optional().nullable(),
@@ -34,7 +34,7 @@ const agentBodyBase = {
   commissionOn: z.string().max(30).optional(),
 
   status: z.nativeEnum(AGENT_STATUS).optional(),
-  
+
   bankName: z.string().max(100).optional().nullable(),
   accountHolderName: z.string().max(200).optional().nullable(),
   accountNumber: z.string().max(50).optional().nullable(),
@@ -84,5 +84,16 @@ export const getAgentsSchema = z.object({
     status: z.nativeEnum(AGENT_STATUS).optional(),
     district: z.string().optional(),
     search: z.string().optional(),
+  }),
+});
+
+export const getAgentUsersSchema = z.object({
+  params: z.object({
+    agentId: z.coerce.number().int().positive(),
+  }),
+  query: z.object({
+    page: z.coerce.number().int().positive().optional(),
+    limit: z.coerce.number().int().positive().optional(),
+    isPremium: z.enum(['true', 'false']).optional(), // Filter by premium status
   }),
 });
