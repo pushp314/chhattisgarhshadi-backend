@@ -177,19 +177,34 @@ export const updatePlanDiscount = asyncHandler(async (req, res) => {
 });
 
 
+/**
+ * [NEW] Update plan details (Admin)
+ */
+export const updatePlan = asyncHandler(async (req, res) => {
+  const { planId } = req.params;
+  const updateData = req.body;
+
+  const updatedPlan = await adminService.updatePlan(parseInt(planId), updateData);
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, updatedPlan, 'Plan updated successfully'));
+});
+
+
 export const adminController = {
   getAllUsers,
   getUserById,
   updateUserRole,
   deleteUser,
-  getAllProfiles,
   getDashboardStats,
   cleanupExpiredTokens,
   getRecentUsers,
   getRecentMatches,
-  getReports,     // ADDED
-  getReportById,  // ADDED
-  updateReport,   // ADDED
-  getPlans,       // ADDED
-  updatePlanDiscount, // ADDED
+  getReports,
+  getReportById,
+  updateReportStatus,
+  getPlans,
+  updatePlanDiscount,
+  updatePlan, // ADDED
 };

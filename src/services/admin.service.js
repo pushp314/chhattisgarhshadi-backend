@@ -314,14 +314,62 @@ const updatePlanDiscount = async (planId, discountPercentage, discountValidUntil
   }
 };
 
+/**
+ * [NEW] Update plan details (Admin)
+ * @param {number} planId - The ID of the plan
+ * @param {Object} data - Update data (name, description, price, durationDays, features, isActive)
+ * @returns {Promise<Object>} The updated plan
+ */
+const updatePlan = async (planId, data) => {
+  try {
+    const plan = await prisma.subscriptionPlan.findUnique({
+      where: { id: planId },
+    });
+
+    if (!plan) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Plan not found');
+    }
+
+    const { name, description, price, durationDays, features, isActive } = data;
+
+    // Prepare update data
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (description !== undefined) updateData.description = description;
+    if (price !== undefined) {
+      updateData.price = price;
+      // If price changes, reset original price if discount is active, or update it
+      if (!plan.originalPrice) {
+        updateData.originalPrice = price; // Initial set
+      }
+    }
+    if (durationDays) updateData.durationDays = durationDays;
+    if (features) updateData.features = JSON.stringify(features);
+    if (isActive !== undefined) updateData.isActive = isActive;
+
+    const updatedPlan = await prisma.subscriptionPlan.update({
+      where: { id: planId },
+      data: updateData,
+    });
+
+    logger.info(`Admin updated plan ${planId}`);
+    return updatedPlan;
+  } catch (error) {
+    logger.error('Error in updatePlan:', error);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to update plan');
+  }
+};
+
 export const adminService = {
   getDashboardStats,
   cleanupExpiredTokens,
   getRecentUsers,
   getRecentMatches,
-  getReports,         // ADDED
-  getReportById,      // ADDED
-  updateReportStatus, // ADDED
-  getPlans,           // ADDED
-  updatePlanDiscount, // ADDED
+  getReports,
+  getReportById,
+  updateReportStatus,
+  getPlans,
+  updatePlanDiscount,
+  updatePlan, // ADDED
 };

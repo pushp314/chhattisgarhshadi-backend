@@ -103,6 +103,7 @@ router.use('/analytics', analyticsRoutes);
 
 // --- SUBSCRIPTION PLAN MANAGEMENT ---
 router.get('/plans', adminController.getPlans);
+router.put('/plans/:planId', adminController.updatePlan); // ADDED: Update plan details
 router.patch('/plans/:planId/discount', adminController.updatePlanDiscount);
 
 // --- ADDED: Activity Logs ---

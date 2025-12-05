@@ -28,6 +28,22 @@ export const getFullUserById = async (userId) => {
       where: { id: userId, isActive: true },
       include: {
         profile: true,
+        subscriptions: {
+          include: { plan: true },
+          orderBy: { createdAt: 'desc' },
+        },
+        payments: {
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
+        reportsReceived: { // Reports filed AGAINST this user
+          orderBy: { createdAt: 'desc' },
+          take: 5,
+        },
+        activityLogs: { // Actions performed BY this user (or on this user if actorId logic is used)
+          orderBy: { createdAt: 'desc' },
+          take: 10,
+        },
         // --- ADDED: Include agent name for admin panel ---
         agent: {
           select: {
@@ -42,7 +58,7 @@ export const getFullUserById = async (userId) => {
     if (!user) {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.USER_NOT_FOUND);
     }
-    
+
     // It's safe to return the full user object here because
     // it's only called by getMyProfile (for the user themselves)
     // or by an admin (who is allowed to see this)
@@ -176,7 +192,7 @@ export const searchUsers = async (query, currentUserId = null) => {
     if (currentUserId) {
       const blockedIds = Array.from(await blockService.getAllBlockedUserIds(currentUserId));
       blockedIds.push(currentUserId); // Add self to block list
-      
+
       where.id = { notIn: blockedIds };
     }
     // --- End Block Check ---
@@ -317,9 +333,9 @@ export const updateUserRole = async (userId, role) => {
   try {
     // Add validation to ensure 'role' is a valid UserRole
     if (!Object.values(USER_ROLES).includes(role)) {
-       throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid user role');
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid user role');
     }
-    
+
     const user = await prisma.user.update({
       where: { id: userId },
       data: { role },
