@@ -2,7 +2,6 @@ import bcrypt from 'bcryptjs';
 import prisma from '../config/database.js';
 import googleAuthClient from '../config/googleAuth.js';
 import jwtUtils from '../utils/jwt.js';
-import smsService from './sms.service.js';
 import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
@@ -325,8 +324,28 @@ class AuthService {
     }
   }
 
-  async sendPhoneOTP(userId, phone, countryCode = '+91') {
+  /**
+   * Verify Firebase Phone Auth Token and mark phone as verified
+   * @param {number} userId - User ID
+   * @param {string} firebaseIdToken - Firebase ID token after client-side phone verification
+   * @returns {Promise<Object>}
+   */
+  async verifyFirebasePhone(userId, firebaseIdToken) {
     try {
+      // Import Firebase Admin SDK
+      const { default: admin } = await import('../config/firebase.js');
+
+      // Verify the Firebase ID token
+      const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
+
+      // Extract phone number from Firebase token
+      const phoneNumber = decodedToken.phone_number;
+
+      if (!phoneNumber) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Phone number not found in Firebase token');
+      }
+
+      // Check if user exists
       const user = await prisma.user.findUnique({
         where: { id: userId },
       });
@@ -335,126 +354,53 @@ class AuthService {
         throw new ApiError(HTTP_STATUS.NOT_FOUND, 'User not found');
       }
 
-      if (user.isPhoneVerified) {
-        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Phone already verified');
+      if (user.isPhoneVerified && user.phone === phoneNumber) {
+        // Already verified with same phone
+        return { success: true, message: 'Phone already verified' };
       }
 
       // Check if phone exists for another user
       const existingPhone = await prisma.user.findFirst({
         where: {
-          phone,
+          phone: phoneNumber,
           isPhoneVerified: true,
           id: { not: userId },
         },
       });
 
       if (existingPhone) {
-        throw new ApiError(HTTP_STATUS.CONFLICT, 'Phone number already registered');
+        throw new ApiError(HTTP_STATUS.CONFLICT, 'Phone number already registered to another account');
       }
 
-      // Generate 6-digit OTP
-      const otp = Math.floor(100000 + Math.random() * 900000).toString();
-      const otpHash = await bcrypt.hash(otp, 10);
-      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+      // Parse country code from phone number (e.g., +91 from +919876543210)
+      const countryCode = phoneNumber.substring(0, 3); // Simple extraction, may need refinement
+      const localPhone = phoneNumber.substring(3);
 
-      // Upsert the OTP record: delete old ones and create new one in a transaction
-      await prisma.$transaction([
-        prisma.phoneVerification.deleteMany({
-          where: { userId },
-        }),
-        prisma.phoneVerification.create({
-          data: {
-            userId,
-            phone,
-            countryCode,
-            otpHash,
-            expiresAt,
-          },
-        })
-      ]);
-
-      // Send OTP via SMS
-      await smsService.sendOTP(phone, otp, countryCode);
-
-      logger.info(`✅ OTP sent to ${countryCode}${phone} for user ${userId}`);
-
-      return { success: true };
-
-    } catch (error) {
-      logger.error('❌ Send OTP error:', error.message);
-      if (!(error instanceof ApiError)) {
-        throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message || 'Failed to send OTP');
-      }
-      throw error;
-    }
-  }
-
-  async verifyPhoneOTP(userId, phone, otp) {
-    try {
-      // Find OTP record
-      const otpRecord = await prisma.phoneVerification.findFirst({
-        where: {
-          userId,
-          phone,
-          isVerified: false,
-          expiresAt: {
-            gt: new Date(),
-          },
+      // Update user with verified phone
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          phone: localPhone,
+          countryCode: countryCode,
+          isPhoneVerified: true,
+          phoneVerifiedAt: new Date(),
         },
       });
 
-      if (!otpRecord) {
-        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'OTP expired or not found');
-      }
+      logger.info(`✅ Firebase Phone verified for user ${userId}: ${phoneNumber}`);
 
-      // Check attempts
-      if (otpRecord.attempts >= 3) { // 3 attempts is a good limit
-        throw new ApiError(HTTP_STATUS.TOO_MANY_REQUESTS, 'Maximum OTP attempts exceeded');
-      }
-
-      // Verify OTP
-      const isValid = await bcrypt.compare(otp, otpRecord.otpHash);
-
-      if (!isValid) {
-        await prisma.phoneVerification.update({
-          where: { id: otpRecord.id },
-          data: {
-            attempts: otpRecord.attempts + 1,
-          },
-        });
-
-        const attemptsRemaining = 3 - (otpRecord.attempts + 1);
-        throw new ApiError(HTTP_STATUS.BAD_REQUEST, `Invalid OTP. ${attemptsRemaining} attempts remaining.`);
-      }
-
-      // Mark as verified
-      await prisma.$transaction([
-        prisma.phoneVerification.update({
-          where: { id: otpRecord.id },
-          data: {
-            isVerified: true,
-            verifiedAt: new Date(),
-          },
-        }),
-        prisma.user.update({
-          where: { id: userId },
-          data: {
-            phone,
-            countryCode: otpRecord.countryCode,
-            isPhoneVerified: true,
-            phoneVerifiedAt: new Date(),
-          },
-        })
-      ]);
-
-      logger.info(`✅ Phone verified for user ${userId}`);
-
-      return { success: true };
+      return { success: true, phone: phoneNumber };
 
     } catch (error) {
-      logger.error('❌ Verify OTP error:', error.message);
+      logger.error('❌ Firebase phone verification error:', error.message);
+      if (error.code === 'auth/id-token-expired') {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Firebase token expired. Please verify again.');
+      }
+      if (error.code === 'auth/argument-error') {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Invalid Firebase token format.');
+      }
       if (!(error instanceof ApiError)) {
-        throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message || 'OTP verification failed');
+        throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, error.message || 'Phone verification failed');
       }
       throw error;
     }

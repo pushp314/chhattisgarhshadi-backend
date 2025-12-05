@@ -5,7 +5,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
 class AuthController {
-  
+
   googleMobileAuth = asyncHandler(async (req, res) => {
     // --- MODIFIED: Added agentCode ---
     const { idToken, authorizationCode, redirectUri, deviceInfo, agentCode } = req.body;
@@ -52,10 +52,10 @@ class AuthController {
 
     // Handle OAuth error from Google
     if (error) {
-      const errorMessage = error === 'access_denied' 
-        ? 'User cancelled the authentication' 
+      const errorMessage = error === 'access_denied'
+        ? 'User cancelled the authentication'
         : `Authentication failed: ${error}`;
-      
+
       // Redirect to app with error
       const appDeepLink = `com.chhattisgarhshaadi.app://oauth-error?error=${encodeURIComponent(errorMessage)}`;
       return res.redirect(appDeepLink);
@@ -69,9 +69,9 @@ class AuthController {
 
     try {
       // Exchange authorization code for user info and tokens
-      const redirectUri = process.env.GOOGLE_CALLBACK_URL || 
-                          `${req.protocol}://${req.get('host')}/api/v1/auth/google/callback`;
-      
+      const redirectUri = process.env.GOOGLE_CALLBACK_URL ||
+        `${req.protocol}://${req.get('host')}/api/v1/auth/google/callback`;
+
       // Note: We'd need to pass agentCode from 'state' here if this flow is also used for agent referral.
       // For now, I'm only modifying the mobile flow as requested.
       const result = await authService.verifyGoogleAuthCode(
@@ -87,7 +87,7 @@ class AuthController {
         `accessToken=${encodeURIComponent(result.accessToken)}&` +
         `refreshToken=${encodeURIComponent(result.refreshToken)}&` +
         `isNewUser=${result.isNewUser}`;
-      
+
       return res.redirect(appDeepLink);
 
     } catch (error) {
@@ -121,27 +121,21 @@ class AuthController {
     return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Logged out successfully'));
   });
 
-  sendPhoneOTP = asyncHandler(async (req, res) => {
-    const { phone, countryCode } = req.body;
+  /**
+   * Verify Firebase Phone Auth Token
+   * POST /auth/phone/verify-firebase
+   */
+  verifyFirebasePhone = asyncHandler(async (req, res) => {
+    const { firebaseIdToken } = req.body;
     const userId = req.user.id;
 
-    await authService.sendPhoneOTP(userId, phone, countryCode);
+    if (!firebaseIdToken) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Firebase ID token is required');
+    }
 
-    const data = {
-      expiresIn: 300, // 5 minutes
-      otpSentTo: `${countryCode || '+91'}${phone}`,
-    };
+    const result = await authService.verifyFirebasePhone(userId, firebaseIdToken);
 
-    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, 'OTP sent successfully'));
-  });
-
-  verifyPhoneOTP = asyncHandler(async (req, res) => {
-    const { phone, otp } = req.body;
-    const userId = req.user.id;
-
-    await authService.verifyPhoneOTP(userId, phone, otp);
-
-    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, null, 'Phone verified successfully'));
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, result, 'Phone verified successfully'));
   });
 }
 

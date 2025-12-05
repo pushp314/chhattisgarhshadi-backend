@@ -131,12 +131,6 @@ router.get('/health', async (req, res) => {
             : '⚠️ Not configured',
           service: 'S3 File Storage',
         },
-        msg91: {
-          status: process.env.MSG91_AUTH_KEY && process.env.MSG91_AUTH_KEY !== 'your-msg91-auth-key'
-            ? '✅ Configured'
-            : '⚠️ Not configured',
-          service: 'SMS OTP',
-        },
         razorpay: {
           status: process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
           service: 'Payment Gateway',

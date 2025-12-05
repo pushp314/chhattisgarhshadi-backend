@@ -2,13 +2,11 @@ import { Router } from 'express';
 import authController from '../controllers/auth.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.middleware.js';
-import { otpLimiter } from '../middleware/auth.rate-limiter.js';
 import {
   googleMobileAuthSchema,
   refreshTokenSchema,
   logoutSchema,
-  sendPhoneOTPSchema,
-  verifyPhoneOTPSchema,
+  verifyFirebasePhoneSchema,
 } from '../validation/auth.validation.js';
 
 const router = Router();
@@ -40,21 +38,12 @@ router.post(
   authController.logout
 );
 
-
+// Firebase Phone Verification (replaces MSG91 OTP)
 router.post(
-  '/phone/send-otp',
+  '/phone/verify-firebase',
   authenticate,
-  otpLimiter,
-  validate(sendPhoneOTPSchema),
-  authController.sendPhoneOTP
-);
-
-
-router.post(
-  '/phone/verify-otp',
-  authenticate,
-  validate(verifyPhoneOTPSchema),
-  authController.verifyPhoneOTP
+  validate(verifyFirebasePhoneSchema),
+  authController.verifyFirebasePhone
 );
 
 export default router;

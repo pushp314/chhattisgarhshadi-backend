@@ -12,7 +12,7 @@ export const googleMobileAuthSchema = z.object({
     // Legacy idToken flow (BACKWARD COMPATIBILITY)
     idToken: z.string().min(1).optional(),
     deviceInfo: z.object({}).passthrough().optional(), // Allow any device info object
-    
+
     // --- ADDED: Optional agentCode ---
     agentCode: z.string().max(20).optional(),
     // --- End of Add ---
@@ -40,18 +40,9 @@ export const logoutSchema = z.object({
   }),
 });
 
-// Schema for sending OTP
-export const sendPhoneOTPSchema = z.object({
+// Schema for Firebase Phone Verification
+export const verifyFirebasePhoneSchema = z.object({
   body: z.object({
-    phone: z.string().regex(phoneRegex, 'Invalid phone number format'),
-    countryCode: z.string().startsWith('+').optional(),
-  }),
-});
-
-// Schema for verifying OTP
-export const verifyPhoneOTPSchema = z.object({
-  body: z.object({
-    phone: z.string().regex(phoneRegex, 'Invalid phone number format'),
-    otp: z.string().length(6, 'OTP must be 6 digits'),
+    firebaseIdToken: z.string({ required_error: 'Firebase ID token is required' }).min(1),
   }),
 });

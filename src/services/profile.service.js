@@ -96,6 +96,27 @@ export const getProfileByUserId = async (userId, currentUserId = null) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.PROFILE_NOT_FOUND);
     }
 
+    // --- Match Status Check [ADDED] ---
+    let matchStatus = null;
+    if (currentUserId && userId !== currentUserId) {
+      const matchRequest = await prisma.matchRequest.findFirst({
+        where: {
+          OR: [
+            { senderId: currentUserId, receiverId: userId },
+            { senderId: userId, receiverId: currentUserId },
+          ],
+        },
+        select: { status: true, senderId: true },
+      });
+
+      // If found, set status. Also useful to know WHO sent it, but status is key.
+      matchStatus = matchRequest?.status || null;
+
+      // Special case: If I am the receiver and it's PENDING, viewed logic might vary?
+      // For now, just returning the status key ('PENDING', 'ACCEPTED', etc.) is enough.
+    }
+    // --- End Match Status Check ---
+
     // Transform media to match frontend expectations
     const transformedMedia = profile.media?.map(m => ({
       id: m.id,
@@ -114,6 +135,7 @@ export const getProfileByUserId = async (userId, currentUserId = null) => {
       isVerified: profile.isVerified,
       isActive: true,
       age: calculateAge(profile.dateOfBirth),
+      matchStatus, // Added to response
     };
   } catch (error) {
     logger.error('Error in getProfileByUserId:', error);
