@@ -40,8 +40,8 @@ export const uploadToS3 = async (
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
-      // CRITICAL FIX: Only set ACL if it's explicitly public
-      ...(isPublic && { ACL: 'public-read' }),
+      // Note: ACL removed - bucket uses 'Bucket owner enforced' Object Ownership
+      // Make sure bucket policy allows public read access for profile photos
     });
 
     await s3Client.send(command);
