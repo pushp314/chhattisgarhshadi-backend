@@ -16,7 +16,7 @@ export const getRevenueAnalytics = async (months = 6) => {
         // Get payments grouped by month
         const payments = await prisma.payment.findMany({
             where: {
-                status: 'SUCCESS',
+                status: 'COMPLETED',
                 paidAt: {
                     gte: startDate,
                 },
@@ -80,12 +80,12 @@ export const getSignupsByDistrict = async (limit = 10) => {
     try {
         // Get signups grouped by district from profiles
         const signups = await prisma.profile.groupBy({
-            by: ['district'],
+            by: ['nativeDistrict'],
             _count: {
                 id: true,
             },
             where: {
-                district: {
+                nativeDistrict: {
                     not: null,
                 },
             },
@@ -126,7 +126,7 @@ export const getSignupsByDistrict = async (limit = 10) => {
 
         return {
             data: signups.map((s) => ({
-                district: s.district || 'Unknown',
+                district: s.nativeDistrict || 'Unknown',
                 users: s._count.id,
             })),
             newUsers30d: newUsersCount,
