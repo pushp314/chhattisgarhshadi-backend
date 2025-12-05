@@ -7,13 +7,9 @@ import { logger } from '../config/logger.js';
  * Create an activity log entry
  */
 export const createActivityLog = async ({
-    actionType,
+    userId,
+    action,
     description,
-    actorId,
-    actorEmail,
-    targetType,
-    targetId,
-    targetEmail,
     metadata,
     ipAddress,
     userAgent,
@@ -21,16 +17,12 @@ export const createActivityLog = async ({
     try {
         const log = await prisma.activityLog.create({
             data: {
-                actionType,
-                description,
-                actorId,
-                actorEmail,
-                targetType,
-                targetId: targetId ? parseInt(targetId) : null,
-                targetEmail,
-                metadata: metadata || {},
+                userId,
+                action: action?.substring(0, 100) || 'UNKNOWN',
+                description: description || '',
+                metadata: metadata ? JSON.stringify(metadata) : null,
                 ipAddress,
-                userAgent: userAgent?.substring(0, 500),
+                userAgent,
             },
         });
         return log;
@@ -47,8 +39,8 @@ export const createActivityLog = async ({
 export const getActivityLogs = async ({
     page = 1,
     limit = 20,
-    actionType,
-    actorId,
+    action,
+    userId,
     startDate,
     endDate,
 }) => {
@@ -56,12 +48,12 @@ export const getActivityLogs = async ({
         const skip = (page - 1) * limit;
         const where = {};
 
-        if (actionType) {
-            where.actionType = actionType;
+        if (action) {
+            where.action = action;
         }
 
-        if (actorId) {
-            where.actorId = parseInt(actorId);
+        if (userId) {
+            where.userId = parseInt(userId);
         }
 
         if (startDate || endDate) {
@@ -78,7 +70,7 @@ export const getActivityLogs = async ({
             prisma.activityLog.findMany({
                 where,
                 include: {
-                    actor: {
+                    user: {
                         select: {
                             id: true,
                             email: true,
@@ -135,7 +127,7 @@ export const getActivityStats = async () => {
                 where: { createdAt: { gte: thisWeek } },
             }),
             prisma.activityLog.groupBy({
-                by: ['actionType'],
+                by: ['action'],
                 _count: { id: true },
                 orderBy: { _count: { id: 'desc' } },
                 take: 5,
@@ -147,7 +139,7 @@ export const getActivityStats = async () => {
             todayLogs,
             weekLogs,
             topActions: actionBreakdown.map(a => ({
-                action: a.actionType,
+                action: a.action,
                 count: a._count.id,
             })),
         };
@@ -160,17 +152,13 @@ export const getActivityStats = async () => {
 /**
  * Helper to log admin actions easily
  */
-export const logAdminAction = async (req, actionType, description, target = {}) => {
-    const actor = req.user;
+export const logAdminAction = async (req, action, description, metadata = {}) => {
+    const user = req.user;
     return createActivityLog({
-        actionType,
+        userId: user?.id,
+        action,
         description,
-        actorId: actor?.id,
-        actorEmail: actor?.email,
-        targetType: target.type,
-        targetId: target.id,
-        targetEmail: target.email,
-        metadata: target.metadata,
+        metadata,
         ipAddress: req.ip || req.connection?.remoteAddress,
         userAgent: req.headers?.['user-agent'],
     });
