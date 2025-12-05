@@ -8,7 +8,7 @@ const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
 const ifscRegex = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 
 const agentBodyBase = {
-  agentCode: z.string().min(3, 'Agent code is required').max(20),
+  agentCode: z.string().min(3).max(20).optional(),
   agentName: z.string().min(3, 'Agent name is required').max(200),
 
   contactPerson: z.string().max(100).optional().nullable(),

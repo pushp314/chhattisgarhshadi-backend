@@ -12,8 +12,17 @@ import { logger } from '../config/logger.js';
  */
 export const createAgent = async (data, adminId) => {
   try {
+    // Auto-generate agent code if not provided
+    let agentCode = data.agentCode;
+    if (!agentCode) {
+      const prefix = 'AGT';
+      const random = Math.floor(1000 + Math.random() * 9000); // 4 digit random
+      const timestamp = Date.now().toString().slice(-4); // last 4 digits of timestamp
+      agentCode = `${prefix}${timestamp}${random}`;
+    }
+
     const existingAgent = await prisma.agent.findUnique({
-      where: { agentCode: data.agentCode },
+      where: { agentCode: agentCode },
     });
 
     if (existingAgent) {
@@ -23,6 +32,7 @@ export const createAgent = async (data, adminId) => {
     const agent = await prisma.agent.create({
       data: {
         ...data,
+        agentCode, // Use the generated or provided code
         createdBy: adminId,
       },
     });
