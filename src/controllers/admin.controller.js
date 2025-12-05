@@ -2,7 +2,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { userService } from '../services/user.service.js';
 import { profileService } from '../services/profile.service.js';
-import { adminService } from '../services/admin.service.js'; 
+import { adminService } from '../services/admin.service.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
 /**
@@ -146,6 +146,36 @@ export const updateReport = asyncHandler(async (req, res) => {
     .json(new ApiResponse(HTTP_STATUS.OK, updatedReport, 'Report updated successfully'));
 });
 
+// --- SUBSCRIPTION PLAN MANAGEMENT ---
+
+/**
+ * [NEW] Get all subscription plans (Admin)
+ */
+export const getPlans = asyncHandler(async (req, res) => {
+  const plans = await adminService.getPlans();
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, plans, 'Plans retrieved successfully'));
+});
+
+/**
+ * [NEW] Update plan discount (Admin)
+ */
+export const updatePlanDiscount = asyncHandler(async (req, res) => {
+  const { planId } = req.params;
+  const { discountPercentage, discountValidUntil } = req.body;
+
+  const updatedPlan = await adminService.updatePlanDiscount(
+    parseInt(planId),
+    discountPercentage,
+    discountValidUntil
+  );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(new ApiResponse(HTTP_STATUS.OK, updatedPlan, 'Plan discount updated successfully'));
+});
+
 
 export const adminController = {
   getAllUsers,
@@ -160,4 +190,6 @@ export const adminController = {
   getReports,     // ADDED
   getReportById,  // ADDED
   updateReport,   // ADDED
+  getPlans,       // ADDED
+  updatePlanDiscount, // ADDED
 };

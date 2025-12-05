@@ -93,4 +93,8 @@ router.use('/agents', agentRoutes);
 // All routes will be prefixed with /admin/verifications
 router.use('/verifications', verificationRoutes);
 
+// --- SUBSCRIPTION PLAN MANAGEMENT ---
+router.get('/plans', adminController.getPlans);
+router.patch('/plans/:planId/discount', adminController.updatePlanDiscount);
+
 export default router;

@@ -20,7 +20,7 @@ const getDashboardStats = async () => {
     ] = await Promise.all([
       prisma.user.count(),
       prisma.profile.count(),
-      prisma.matchRequest.count(), 
+      prisma.matchRequest.count(),
       prisma.message.count(),
       prisma.payment.count(), // Corrected from 'payments'
       // ADDED: Count pending reports
@@ -141,8 +141,8 @@ const getReports = async (query) => {
         skip,
         take: limit,
         include: {
-          reporter: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true }} } },
-          reportedUser: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true }} } },
+          reporter: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+          reportedUser: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
         },
         orderBy: {
           createdAt: 'desc',
@@ -233,6 +233,87 @@ const updateReportStatus = async (reportId, data) => {
   }
 };
 
+// --- SUBSCRIPTION PLAN MANAGEMENT ---
+
+/**
+ * [NEW] Get all subscription plans
+ * @returns {Promise<Array>} List of all plans
+ */
+const getPlans = async () => {
+  try {
+    const plans = await prisma.subscriptionPlan.findMany({
+      orderBy: { displayOrder: 'asc' },
+    });
+
+    // Calculate effective price for each plan
+    return plans.map(plan => {
+      let effectivePrice = parseFloat(plan.price);
+
+      // Check if discount is valid
+      if (plan.discountPercentage > 0) {
+        const isDiscountValid = !plan.discountValidUntil || new Date(plan.discountValidUntil) > new Date();
+        if (isDiscountValid) {
+          effectivePrice = effectivePrice * (1 - plan.discountPercentage / 100);
+        }
+      }
+
+      return {
+        ...plan,
+        effectivePrice: Math.round(effectivePrice),
+        hasActiveDiscount: plan.discountPercentage > 0 && (!plan.discountValidUntil || new Date(plan.discountValidUntil) > new Date()),
+      };
+    });
+  } catch (error) {
+    logger.error('Error in getPlans:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to retrieve plans');
+  }
+};
+
+/**
+ * [NEW] Update plan discount (Admin)
+ * @param {number} planId - The ID of the plan
+ * @param {number} discountPercentage - Discount percentage (0-100)
+ * @param {string|null} discountValidUntil - Expiry date or null for no expiry
+ * @returns {Promise<Object>} The updated plan
+ */
+const updatePlanDiscount = async (planId, discountPercentage, discountValidUntil) => {
+  try {
+    const plan = await prisma.subscriptionPlan.findUnique({
+      where: { id: planId },
+    });
+
+    if (!plan) {
+      throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Plan not found');
+    }
+
+    // Validate discount percentage
+    if (discountPercentage < 0 || discountPercentage > 100) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Discount percentage must be between 0 and 100');
+    }
+
+    // Set originalPrice if not already set
+    const originalPrice = plan.originalPrice || plan.price;
+
+    const updatedPlan = await prisma.subscriptionPlan.update({
+      where: { id: planId },
+      data: {
+        originalPrice,
+        discountPercentage,
+        discountValidUntil: discountValidUntil ? new Date(discountValidUntil) : null,
+        // Update the actual price based on discount
+        price: Math.round(parseFloat(originalPrice) * (1 - discountPercentage / 100)),
+      },
+    });
+
+    logger.info(`Admin updated plan ${planId} discount to ${discountPercentage}%`);
+    return updatedPlan;
+  } catch (error) {
+    logger.error('Error in updatePlanDiscount:', error);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to update plan discount');
+  }
+};
+
 export const adminService = {
   getDashboardStats,
   cleanupExpiredTokens,
@@ -241,4 +322,6 @@ export const adminService = {
   getReports,         // ADDED
   getReportById,      // ADDED
   updateReportStatus, // ADDED
+  getPlans,           // ADDED
+  updatePlanDiscount, // ADDED
 };

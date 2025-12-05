@@ -1,10 +1,9 @@
-import prisma from '../src/config/database.js';
-
 /**
- * Seed Subscription Plans
- * 
- * Run with: node prisma/seed-plans.js
+ * Subscription Plans Seed Data
+ * Creates exactly 2 plans: Basic (₹299) and Premium (₹999)
  */
+
+import prisma from '../src/config/database.js';
 
 const subscriptionPlans = [
     {
@@ -13,31 +12,28 @@ const subscriptionPlans = [
         nameEn: 'Basic Plan',
         nameHi: 'बेसिक प्लान',
         nameCg: 'बेसिक प्लान',
-        description: 'Get started with essential features for finding your partner.',
-        price: 299.00,
+        description: 'Perfect for starting your matrimonial journey',
+        price: 299,
+        originalPrice: 299,
+        discountPercentage: 0,
+        discountValidUntil: null,
         currency: 'INR',
-        duration: 30, // 30 days = 1 month
-
-        // Limits
-        maxContactViews: 20,       // View 20 contact details
-        maxMessagesSend: 50,       // Send 50 messages
-        maxInterestsSend: 30,      // Send 30 match requests
-
-        // Features
-        canSeeProfileVisitors: true,   // See who viewed your profile
-        priorityListing: false,         // No priority in search
-        verifiedBadge: false,           // No verified badge
-        incognitoMode: false,           // No incognito browsing
-        dedicatedManager: false,        // No personal manager
-
+        duration: 30, // 1 month
         features: JSON.stringify([
-            'Send up to 30 match requests',
-            'Chat with matched profiles (50 messages)',
-            'View 20 contact details',
-            'See who viewed your profile',
-            'Basic search filters',
+            '30 Contact Views',
+            '50 Messages',
+            '30 Interest Requests',
+            'View Profile Photos',
+            'Basic Search Filters',
         ]),
-
+        maxContactViews: 30,
+        maxMessagesSend: 50,
+        maxInterestsSend: 30,
+        canSeeProfileVisitors: false,
+        priorityListing: false,
+        verifiedBadge: false,
+        incognitoMode: false,
+        dedicatedManager: false,
         isActive: true,
         displayOrder: 1,
         isPopular: false,
@@ -48,84 +44,60 @@ const subscriptionPlans = [
         nameEn: 'Premium Plan',
         nameHi: 'प्रीमियम प्लान',
         nameCg: 'प्रीमियम प्लान',
-        description: 'Unlock all features and find your perfect match faster!',
-        price: 999.00,
+        description: 'Unlimited access to find your perfect match',
+        price: 999,
+        originalPrice: 999,
+        discountPercentage: 0,
+        discountValidUntil: null,
         currency: 'INR',
-        duration: 30, // 30 days = 1 month
-
-        // Limits (0 = unlimited)
-        maxContactViews: 0,        // Unlimited contact views
-        maxMessagesSend: 0,        // Unlimited messages
-        maxInterestsSend: 0,       // Unlimited match requests
-
-        // Features
-        canSeeProfileVisitors: true,    // See who viewed your profile
-        priorityListing: true,          // Appear higher in search results
-        verifiedBadge: true,            // Premium verified badge
-        incognitoMode: true,            // Browse profiles anonymously
-        dedicatedManager: false,        // No personal manager
-
+        duration: 30, // 1 month (same as Basic)
         features: JSON.stringify([
-            'Unlimited match requests',
-            'Unlimited chat messages',
-            'Unlimited contact views',
-            'See who viewed your profile',
-            'Priority listing in search results',
-            'Premium verified badge',
-            'Incognito mode - browse anonymously',
-            'Advanced search filters',
-            'Horoscope matching (Guna Milan)',
+            'Unlimited Contact Views',
+            'Unlimited Messages',
+            'Unlimited Interest Requests',
+            'See Who Viewed Your Profile',
+            'Priority Listing in Search',
+            'Verified Badge',
+            'Incognito Mode',
+            'Advanced Search Filters',
         ]),
-
+        maxContactViews: 0, // 0 = unlimited
+        maxMessagesSend: 0,
+        maxInterestsSend: 0,
+        canSeeProfileVisitors: true,
+        priorityListing: true,
+        verifiedBadge: true,
+        incognitoMode: true,
+        dedicatedManager: false,
         isActive: true,
         displayOrder: 2,
-        isPopular: true, // Highlighted as recommended
+        isPopular: true,
     },
 ];
 
 async function seedPlans() {
-    console.log('🌱 Seeding subscription plans...\n');
+    console.log('🌱 Seeding subscription plans...');
 
+    // Delete all existing plans first
+    await prisma.subscriptionPlan.deleteMany({});
+    console.log('✓ Cleared existing plans');
+
+    // Create the 2 plans
     for (const plan of subscriptionPlans) {
-        const existing = await prisma.subscriptionPlan.findUnique({
-            where: { slug: plan.slug },
+        await prisma.subscriptionPlan.create({
+            data: plan,
         });
-
-        if (existing) {
-            // Update existing plan
-            await prisma.subscriptionPlan.update({
-                where: { slug: plan.slug },
-                data: plan,
-            });
-            console.log(`✅ Updated: ${plan.name} (₹${plan.price}/month)`);
-        } else {
-            // Create new plan
-            await prisma.subscriptionPlan.create({
-                data: plan,
-            });
-            console.log(`✅ Created: ${plan.name} (₹${plan.price}/month)`);
-        }
+        console.log(`✓ Created ${plan.name} plan - ₹${plan.price}`);
     }
 
-    console.log('\n🎉 Subscription plans seeded successfully!\n');
-
-    // Display summary
-    const allPlans = await prisma.subscriptionPlan.findMany({
-        orderBy: { displayOrder: 'asc' },
-    });
-
-    console.log('📋 Current Plans:');
-    console.log('─'.repeat(50));
-    allPlans.forEach(p => {
-        console.log(`  ${p.isPopular ? '⭐' : '  '} ${p.name}: ₹${p.price} / ${p.duration} days`);
-    });
-    console.log('─'.repeat(50));
+    console.log('✅ Subscription plans seeded successfully!');
 }
 
 seedPlans()
-    .then(() => prisma.$disconnect())
     .catch((e) => {
         console.error('❌ Error seeding plans:', e);
-        prisma.$disconnect();
         process.exit(1);
+    })
+    .finally(async () => {
+        await prisma.$disconnect();
     });

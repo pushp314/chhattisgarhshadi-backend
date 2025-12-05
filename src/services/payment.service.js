@@ -102,7 +102,8 @@ export const createOrder = async (userId, planId) => {
       amount: razorpayOrder.amount, // Amount in paise
       currency: razorpayOrder.currency,
       paymentId: payment.id,
-      key: config.RAZORPAY_KEY_ID, // Send key to client
+      key: config.RAZORPAY_KEY_ID, // Keep 'key' for SDK, also add razorpayKey for frontend
+      razorpayKey: config.RAZORPAY_KEY_ID, // Frontend expects this field name
     };
   } catch (error) {
     logger.error('Error in createOrder:', error);

@@ -928,6 +928,11 @@ model SubscriptionPlan {
   currency    String  @default("INR") @db.VarChar(5)
   duration    Int // in days
 
+  // Discount fields (Admin controlled)
+  originalPrice        Decimal?  @db.Decimal(10, 2) // Original price before discount
+  discountPercentage   Int       @default(0) // 0-100
+  discountValidUntil   DateTime? // When discount expires (null = no expiry)
+
   features String? @db.Text // JSON array
 
   maxContactViews       Int     @default(0) // 0 = unlimited
