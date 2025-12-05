@@ -39,8 +39,16 @@ export const createContactRequest = async (requesterId, data) => {
 
     // 2. Get Requester (to check subscription) and Receiver (to check privacy)
     const [requester, receiver] = await Promise.all([
-      prisma.user.findUnique({ where: { id: requesterId } }),
-      prisma.user.findUnique({ 
+      prisma.user.findUnique({
+        where: { id: requesterId },
+        include: {
+          subscriptions: {
+            where: { status: 'ACTIVE', endDate: { gt: new Date() } },
+            take: 1,
+          },
+        },
+      }),
+      prisma.user.findUnique({
         where: { id: profileId, isActive: true },
         include: { profilePrivacySettings: true }
       })
@@ -50,9 +58,13 @@ export const createContactRequest = async (requesterId, data) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, 'The user you are requesting from does not exist');
     }
 
-    // 3. Check if Requester is a Premium User (assuming this is a premium feature)
-    if (requester.role !== USER_ROLES.PREMIUM_USER && requester.role !== USER_ROLES.ADMIN) {
-      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You must be a premium member to request contact information');
+    // 3. Check if Requester is a Premium User (premium feature)
+    const isPremium = requester?.subscriptions?.length > 0 ||
+      requester.role === USER_ROLES.PREMIUM_USER ||
+      requester.role === USER_ROLES.ADMIN;
+
+    if (!isPremium) {
+      throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Viewing contact information is a Premium feature. Upgrade to Premium to view phone and email.');
     }
 
     // 4. Check Receiver's privacy settings
@@ -80,7 +92,7 @@ export const createContactRequest = async (requesterId, data) => {
     if (existingRequest) {
       throw new ApiError(HTTP_STATUS.CONFLICT, 'You already have a pending request of this type for this user');
     }
-    
+
     // 6. Create the request
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000); // 14-day expiry
     const request = await prisma.contactRequest.create({
@@ -95,7 +107,7 @@ export const createContactRequest = async (requesterId, data) => {
     });
 
     // 7. TODO: Send a notification to the `profileId` user
-    
+
     logger.info(`Contact request sent from ${requesterId} to ${profileId} for ${requestType}`);
     return request;
 
@@ -117,7 +129,7 @@ export const createContactRequest = async (requesterId, data) => {
  */
 export const getSentRequests = async (userId, query) => {
   const { page, limit, skip } = getPaginationParams(query);
-  const where = { 
+  const where = {
     requesterId: userId,
     ...(query.status && { status: query.status }),
   };
@@ -153,7 +165,7 @@ export const getSentRequests = async (userId, query) => {
  */
 export const getReceivedRequests = async (userId, query) => {
   const { page, limit, skip } = getPaginationParams(query);
-  
+
   // Also filter out requests from users the receiver has blocked
   const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
 
@@ -180,7 +192,7 @@ export const getReceivedRequests = async (userId, query) => {
     const pagination = getPaginationMetadata(page, limit, total);
     return { requests, pagination };
 
-  } catch (error) { 
+  } catch (error) {
     logger.error('Error in getReceivedRequests:', error);
     throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error retrieving received requests');
   }
@@ -222,7 +234,7 @@ export const respondToRequest = async (userId, requestId, status) => {
     });
 
     // TODO: Send notification to `requesterId` about the response
-    
+
     logger.info(`Contact request ${requestId} was ${status} by user ${userId}`);
     return updatedRequest;
 

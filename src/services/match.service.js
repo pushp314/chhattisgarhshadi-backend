@@ -34,13 +34,47 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
       );
     }
 
-    // --- Block Check [ADDED] ---
-    // Check if either user has blocked the other
+    // --- Check User Subscription Status ---
+    const sender = await prisma.user.findUnique({
+      where: { id: fromUserId },
+      include: {
+        subscriptions: {
+          where: { status: 'ACTIVE', endDate: { gt: new Date() } },
+          take: 1,
+        },
+      },
+    });
+
+    const isPremium = sender?.subscriptions?.length > 0 || sender?.role === 'PREMIUM_USER';
+
+    // --- Free User Limit Check ---
+    if (!isPremium) {
+      const FREE_MONTHLY_LIMIT = 3;
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+
+      const sentThisMonth = await prisma.matchRequest.count({
+        where: {
+          senderId: fromUserId,
+          createdAt: { gte: startOfMonth },
+        },
+      });
+
+      if (sentThisMonth >= FREE_MONTHLY_LIMIT) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          `Free users can send only ${FREE_MONTHLY_LIMIT} interest requests per month. Upgrade to Premium for unlimited requests.`
+        );
+      }
+    }
+    // --- End Free User Limit Check ---
+
+    // --- Block Check ---
     const blockedIdSet = await blockService.getAllBlockedUserIds(fromUserId);
     if (blockedIdSet.has(receiverId)) {
       throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You cannot interact with this user');
     }
-    // --- End Block Check ---
 
     // Check if receiver exists and has a profile
     const receiver = await prisma.user.findUnique({
@@ -80,12 +114,12 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
 
     logger.info(`Match request sent from ${fromUserId} to ${receiverId}`);
 
-    // Return the minimal match object, not the full user profiles
-    return match;
+    // Return match with remaining count for free users
+    const remaining = isPremium ? null : (FREE_MONTHLY_LIMIT - (sentThisMonth + 1));
+    return { ...match, freeRequestsRemaining: remaining };
   } catch (error) {
     logger.error('Error in sendMatchRequest:', error);
     if (error instanceof ApiError) throw error;
-    // Handle Prisma unique constraint violation
     if (error.code === 'P2002') {
       throw new ApiError(HTTP_STATUS.CONFLICT, 'Match request already exists');
     }

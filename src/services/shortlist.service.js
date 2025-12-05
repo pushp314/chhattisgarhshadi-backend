@@ -1,7 +1,7 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
 // FIX: Removed unused ERROR_MESSAGES import
-import { HTTP_STATUS } from '../utils/constants.js'; 
+import { HTTP_STATUS } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 
@@ -27,6 +27,35 @@ export const addToShortlist = async (userId, shortlistedUserId, note) => {
   }
 
   try {
+    // --- Check User Subscription Status ---
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        subscriptions: {
+          where: { status: 'ACTIVE', endDate: { gt: new Date() } },
+          take: 1,
+        },
+      },
+    });
+
+    const isPremium = user?.subscriptions?.length > 0 || user?.role === 'PREMIUM_USER';
+
+    // --- Free User Limit Check ---
+    if (!isPremium) {
+      const FREE_SHORTLIST_LIMIT = 10;
+      const currentCount = await prisma.shortlist.count({
+        where: { userId },
+      });
+
+      if (currentCount >= FREE_SHORTLIST_LIMIT) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          `Free users can shortlist only ${FREE_SHORTLIST_LIMIT} profiles. Upgrade to Premium for unlimited shortlisting.`
+        );
+      }
+    }
+    // --- End Free User Limit Check ---
+
     // Check if the user being shortlisted exists
     const userToShortlist = await prisma.user.findUnique({
       where: { id: shortlistedUserId, isActive: true },
@@ -44,10 +73,13 @@ export const addToShortlist = async (userId, shortlistedUserId, note) => {
       },
     });
     logger.info(`User ${userId} shortlisted user ${shortlistedUserId}`);
-    return shortlistEntry;
+
+    // Return with remaining count for free users
+    const remaining = isPremium ? null : (FREE_SHORTLIST_LIMIT - (currentCount + 1));
+    return { ...shortlistEntry, freeShortlistsRemaining: remaining };
   } catch (error) {
     logger.error('Error in addToShortlist:', error);
-    if (error.code === 'P2002') { // Unique constraint violation
+    if (error.code === 'P2002') {
       throw new ApiError(HTTP_STATUS.CONFLICT, 'This user is already in your shortlist');
     }
     if (error instanceof ApiError) throw error;

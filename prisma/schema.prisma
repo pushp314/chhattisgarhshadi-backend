@@ -121,6 +121,13 @@ enum MatchRequestStatus {
   EXPIRED
 }
 
+enum ContactRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+}
+
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
@@ -834,6 +841,7 @@ model ProfileView {
   isAnonymous Boolean  @default(false)
   viewedAt    DateTime @default(now())
 
+  @@unique([viewerId, profileId]) // Prevent duplicate views at DB level
   @@index([viewerId])
   @@index([profileId, viewedAt(sort: Desc)])
   @@map("profile_views")
@@ -968,6 +976,7 @@ model UserSubscription {
 
   @@index([userId, status])
   @@index([endDate])
+  @@index([planId]) // Added for plan-based queries
   @@map("user_subscriptions")
 }
 
