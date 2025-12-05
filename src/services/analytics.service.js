@@ -1,7 +1,7 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
-import logger from '../config/logger.js';
+import { logger } from '../config/logger.js';
 
 /**
  * Get monthly revenue data for the last N months
