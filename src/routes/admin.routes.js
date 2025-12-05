@@ -16,6 +16,8 @@ import {
 import agentRoutes from './agent.routes.js';
 // ADDED: Import verification routes
 import verificationRoutes from './verification.routes.js';
+// ADDED: Import analytics routes
+import analyticsRoutes from './analytics.routes.js';
 
 const router = Router();
 
@@ -92,6 +94,10 @@ router.use('/agents', agentRoutes);
 // --- ADDED: Verification Management ---
 // All routes will be prefixed with /admin/verifications
 router.use('/verifications', verificationRoutes);
+
+// --- ADDED: Analytics ---
+// All routes will be prefixed with /admin/analytics
+router.use('/analytics', analyticsRoutes);
 
 // --- SUBSCRIPTION PLAN MANAGEMENT ---
 router.get('/plans', adminController.getPlans);
