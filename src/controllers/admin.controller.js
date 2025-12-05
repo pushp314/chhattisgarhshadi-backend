@@ -197,6 +197,7 @@ export const adminController = {
   getUserById,
   updateUserRole,
   deleteUser,
+  getAllProfiles, // ADDED
   getDashboardStats,
   cleanupExpiredTokens,
   getRecentUsers,
