@@ -3,6 +3,7 @@ import { ApiResponse } from '../utils/ApiResponse.js';
 import { userService } from '../services/user.service.js';
 import { profileService } from '../services/profile.service.js';
 import { adminService } from '../services/admin.service.js';
+import { logAdminAction } from '../services/activityLog.service.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 
 /**
@@ -33,6 +34,7 @@ export const updateUserRole = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
   const user = await userService.updateUserRole(userId, role);
+  await logAdminAction(req, 'USER_ROLE_CHANGED', `Changed role of user ${user.email} to ${role}`, { userId, role });
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, user, 'User role updated successfully'));
@@ -43,6 +45,7 @@ export const updateUserRole = asyncHandler(async (req, res) => {
  */
 export const deleteUser = asyncHandler(async (req, res) => {
   await userService.deleteUser(req.params.userId);
+  await logAdminAction(req, 'USER_DELETED', `Deleted user ${req.params.userId}`, { userId: req.params.userId });
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, null, 'User deleted successfully'));
@@ -141,6 +144,7 @@ export const updateReport = asyncHandler(async (req, res) => {
     req.params.id,
     req.body
   );
+  await logAdminAction(req, 'REPORT_UPDATED', `Updated report ${req.params.id}`, { reportId: req.params.id, update: req.body });
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, updatedReport, 'Report updated successfully'));
@@ -171,6 +175,8 @@ export const updatePlanDiscount = asyncHandler(async (req, res) => {
     discountValidUntil
   );
 
+  await logAdminAction(req, 'PLAN_DISCOUNT_UPDATED', `Updated discount for plan ${planId}`, { planId, discountPercentage });
+
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, updatedPlan, 'Plan discount updated successfully'));
@@ -185,6 +191,7 @@ export const updatePlan = asyncHandler(async (req, res) => {
   const updateData = req.body;
 
   const updatedPlan = await adminService.updatePlan(parseInt(planId), updateData);
+  await logAdminAction(req, 'PLAN_UPDATED', `Updated plan ${planId}`, { planId, updateData });
 
   res
     .status(HTTP_STATUS.OK)

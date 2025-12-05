@@ -12,7 +12,7 @@ export const getPaginationMetadata = (page, limit, total) => {
   const hasPrevPage = page > 1;
 
   return {
-    currentPage: page,
+    page,
     totalPages,
     totalItems: total,
     itemsPerPage: limit,

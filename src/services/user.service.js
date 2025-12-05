@@ -25,7 +25,7 @@ const userPublicSelect = {
 export const getFullUserById = async (userId) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: userId, isActive: true },
+      where: { id: parseInt(userId) },
       include: {
         profile: true,
         subscriptions: {
