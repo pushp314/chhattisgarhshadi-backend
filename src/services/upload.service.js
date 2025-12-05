@@ -5,6 +5,7 @@ import {
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, getBucketName, isS3Configured } from '../config/aws.js';
+import { config } from '../config/config.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 import { generateUniqueFilename, generateS3Key } from '../utils/helpers.js';
@@ -45,7 +46,8 @@ export const uploadToS3 = async (
 
     await s3Client.send(command);
 
-    const s3Url = `https://${getBucketName()}.s3.amazonaws.com/${key}`;
+    const region = config.AWS_S3_REGION || config.AWS_REGION || 'eu-north-1';
+    const s3Url = `https://${getBucketName()}.s3.${region}.amazonaws.com/${key}`;
 
     logger.info(`File uploaded to S3: ${key} (public: ${isPublic})`);
 
