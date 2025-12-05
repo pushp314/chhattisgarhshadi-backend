@@ -91,7 +91,7 @@ export const cleanupExpiredTokens = asyncHandler(async (req, res) => {
  * Get recent users (Admin)
  */
 export const getRecentUsers = asyncHandler(async (req, res) => {
-  const limit = req.query.limit;
+  const limit = parseInt(req.query.limit, 10) || 10;
   const users = await adminService.getRecentUsers(limit);
   res
     .status(HTTP_STATUS.OK)
@@ -102,7 +102,7 @@ export const getRecentUsers = asyncHandler(async (req, res) => {
  * Get recent matches (Admin)
  */
 export const getRecentMatches = asyncHandler(async (req, res) => {
-  const limit = req.query.limit;
+  const limit = parseInt(req.query.limit, 10) || 10;
   const matches = await adminService.getRecentMatches(limit);
   res
     .status(HTTP_STATUS.OK)
