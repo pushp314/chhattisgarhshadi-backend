@@ -203,7 +203,7 @@ export const adminController = {
   getRecentMatches,
   getReports,
   getReportById,
-  updateReportStatus,
+  updateReport,
   getPlans,
   updatePlanDiscount,
   updatePlan, // ADDED
