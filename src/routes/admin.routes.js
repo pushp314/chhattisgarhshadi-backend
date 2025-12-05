@@ -18,6 +18,8 @@ import agentRoutes from './agent.routes.js';
 import verificationRoutes from './verification.routes.js';
 // ADDED: Import analytics routes
 import analyticsRoutes from './analytics.routes.js';
+// ADDED: Import activity log routes
+import activityLogRoutes from './activityLog.routes.js';
 
 const router = Router();
 
@@ -102,5 +104,9 @@ router.use('/analytics', analyticsRoutes);
 // --- SUBSCRIPTION PLAN MANAGEMENT ---
 router.get('/plans', adminController.getPlans);
 router.patch('/plans/:planId/discount', adminController.updatePlanDiscount);
+
+// --- ADDED: Activity Logs ---
+// All routes will be prefixed with /admin/activity-logs
+router.use('/activity-logs', activityLogRoutes);
 
 export default router;

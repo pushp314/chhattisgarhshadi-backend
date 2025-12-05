@@ -292,7 +292,7 @@ model User {
   subscriptions         UserSubscription[]
   payments              Payment[]
   notifications         Notification[]
-  activityLogs          ActivityLog[]
+  activityLogs          ActivityLog[]       @relation("ActivityActor")
   profileViewsGiven     ProfileView[]       @relation("ProfileViewer")
   profileViewsReceived  ProfileView[]       @relation("ProfileViewed")
   shortlistsGiven       Shortlist[]         @relation("ShortlistGiver")
@@ -1527,3 +1527,61 @@ model NotificationPreferences {
 
   @@map("notification_preferences")
 }
+
+// ============================================
+// ACTIVITY LOGS - Admin Audit Trail
+// ============================================
+
+enum ActionType {
+  USER_CREATED
+  USER_UPDATED
+  USER_DELETED
+  USER_ROLE_CHANGED
+  USER_BANNED
+  USER_UNBANNED
+  PROFILE_VERIFIED
+  PROFILE_REJECTED
+  REPORT_REVIEWED
+  REPORT_RESOLVED
+  REPORT_DISMISSED
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_UPDATED
+  AGENT_CREATED
+  AGENT_UPDATED
+  AGENT_DELETED
+  PLAN_UPDATED
+  SETTINGS_CHANGED
+  ADMIN_LOGIN
+  ADMIN_LOGOUT
+  BULK_ACTION
+  OTHER
+}
+
+model ActivityLog {
+  id          Int        @id @default(autoincrement())
+  actionType  ActionType
+  description String     @db.VarChar(500)
+  
+  // Actor (admin who performed the action)
+  actorId     Int?
+  actor       User?      @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+  actorEmail  String?    @db.VarChar(255) // Store email in case user is deleted
+  
+  // Target (user/entity affected by the action)
+  targetType  String?    @db.VarChar(50) // e.g., "User", "Profile", "Report"
+  targetId    Int?
+  targetEmail String?    @db.VarChar(255) // Store email for user targets
+  
+  // Additional metadata
+  metadata    Json?      // Store additional context as JSON
+  ipAddress   String?    @db.VarChar(45)
+  userAgent   String?    @db.VarChar(500)
+  
+  createdAt   DateTime   @default(now())
+
+  @@index([actorId])
+  @@index([actionType])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
+
