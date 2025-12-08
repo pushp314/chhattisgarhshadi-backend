@@ -55,6 +55,7 @@ export const sendMessage = async (senderId, receiverId, content) => {
 
     // --- Receiver Subscription Check [ADDED] ---
     // Both users must have premium to chat
+    const receiverIsPremiumRole = receiver.role === 'PREMIUM_USER';
     const receiverSubscription = await prisma.userSubscription.findFirst({
       where: {
         userId: receiverId,
@@ -65,7 +66,7 @@ export const sendMessage = async (senderId, receiverId, content) => {
       },
     });
 
-    if (!receiverSubscription) {
+    if (!receiverSubscription && !receiverIsPremiumRole) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
         'This user does not have an active premium subscription. Both users need premium to chat.'

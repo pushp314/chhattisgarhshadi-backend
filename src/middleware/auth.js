@@ -142,6 +142,12 @@ export const requireSubscription = async (req, res, next) => {
       return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Authentication required'));
     }
 
+    // FIRST: Check if user has PREMIUM_USER role (set manually via database or payment)
+    if (req.user.role === 'PREMIUM_USER') {
+      req.subscription = { isPremiumRole: true };
+      return next();
+    }
+
     // Check for active subscription
     const activeSubscription = await prisma.userSubscription.findFirst({
       where: {
