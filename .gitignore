@@ -70,6 +70,10 @@ typings/
 .env.local
 .env.production
 
+# Firebase service account key - NEVER COMMIT THIS!
+serviceAccountKey.json
+serviceAccountKey*.json
+
 # Logs directory
 logs/
 

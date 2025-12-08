@@ -332,8 +332,15 @@ class AuthService {
    */
   async verifyFirebasePhone(userId, firebaseIdToken) {
     try {
-      // Import Firebase Admin SDK
-      const { default: admin } = await import('../config/firebase.js');
+      // Import Firebase Admin SDK and helper
+      const admin = (await import('firebase-admin')).default;
+      const { getFirebaseApp } = await import('../config/firebase.js');
+
+      // Ensure Firebase is initialized
+      const firebaseApp = getFirebaseApp();
+      if (!firebaseApp) {
+        throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Firebase Admin SDK not initialized. Please contact support.');
+      }
 
       // Verify the Firebase ID token
       const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
