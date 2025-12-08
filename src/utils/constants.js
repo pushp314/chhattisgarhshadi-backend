@@ -1,9 +1,10 @@
 /**
- * User Roles
+ * User Roles (Matches Prisma Enum: UserRole)
  */
 export const USER_ROLES = {
   USER: 'USER',
   PREMIUM_USER: 'PREMIUM_USER',
+  VERIFIED_USER: 'VERIFIED_USER',
   ADMIN: 'ADMIN',
 };
 
@@ -116,12 +117,14 @@ export const OCCUPATION_TYPE = {
 };
 
 /**
- * Match Status Options
+ * Match Status Options (Matches Prisma Enum: MatchRequestStatus)
  */
 export const MATCH_STATUS = {
   PENDING: 'PENDING',
   ACCEPTED: 'ACCEPTED',
   REJECTED: 'REJECTED',
+  CANCELLED: 'CANCELLED',
+  EXPIRED: 'EXPIRED',
 };
 
 /**
