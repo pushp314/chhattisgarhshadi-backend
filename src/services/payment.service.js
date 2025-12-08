@@ -163,7 +163,7 @@ export const verifyPayment = async (data) => {
       where: { id: payment.id },
       data: {
         razorpayPaymentId: razorpay_payment_id,
-        status: PAYMENT_STATUS.SUCCESS, // Mark as "SUCCESS" (client verified)
+        status: PAYMENT_STATUS.COMPLETED, // Mark as "COMPLETED" (client verified)
         paymentMethod: 'Razorpay', // Placeholder
         paidAt: new Date(),
       },

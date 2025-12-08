@@ -125,12 +125,14 @@ export const MATCH_STATUS = {
 };
 
 /**
- * Payment Status Options
+ * Payment Status Options (Matches Prisma Enum: PaymentStatus)
  */
 export const PAYMENT_STATUS = {
   PENDING: 'PENDING',
-  SUCCESS: 'SUCCESS',
+  COMPLETED: 'COMPLETED',
   FAILED: 'FAILED',
+  REFUNDED: 'REFUNDED',
+  CANCELLED: 'CANCELLED',
 };
 
 /**
