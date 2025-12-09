@@ -1,11 +1,13 @@
 import prisma from '../config/database.js';
 import { Prisma } from '@prisma/client';
 import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, ERROR_MESSAGES } from '../utils/constants.js';
+import { HTTP_STATUS, ERROR_MESSAGES, NOTIFICATION_TYPES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 // ADDED: Import the blockService to check for blocks
 import { blockService } from './block.service.js';
+// ADDED: Import notificationService to send push notifications
+import { notificationService } from './notification.service.js';
 
 // Define a reusable Prisma select for public-facing user data
 // This prevents leaking sensitive fields like email, phone, googleId, etc.
@@ -89,6 +91,20 @@ export const sendMessage = async (senderId, receiverId, content) => {
         },
       },
     });
+
+    // ADDED: Send push notification to receiver
+    const senderName = message.sender?.profile?.firstName || 'Someone';
+    notificationService.createNotification({
+      userId: receiverId,
+      type: NOTIFICATION_TYPES.NEW_MESSAGE,
+      title: `New message from ${senderName}`,
+      message: content.length > 50 ? content.substring(0, 50) + '...' : content,
+      data: {
+        type: 'NEW_MESSAGE',
+        userId: String(senderId),
+        userName: senderName,
+      },
+    }).catch(err => logger.error('Failed to send message notification:', err));
 
     logger.info(`Message sent from ${senderId} to ${receiverId}`);
     return message;

@@ -1,10 +1,12 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, ERROR_MESSAGES, MATCH_STATUS } from '../utils/constants.js';
+import { HTTP_STATUS, ERROR_MESSAGES, MATCH_STATUS, NOTIFICATION_TYPES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 // ADDED: Import the blockService to check for blocks
 import { blockService } from './block.service.js';
+// ADDED: Import notificationService for push notifications
+import { notificationService } from './notification.service.js';
 
 // Reusable Prisma select for public-facing user data
 // Prevents leaking sensitive fields like email, phone, googleId, etc.
@@ -112,6 +114,21 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
       },
     });
 
+    // ADDED: Send push notification to receiver
+    const senderName = sender?.profile?.firstName || 'Someone';
+    notificationService.createNotification({
+      userId: receiverId,
+      type: NOTIFICATION_TYPES.MATCH_REQUEST,
+      title: 'New Interest Request!',
+      message: `${senderName} is interested in your profile.`,
+      data: {
+        type: 'MATCH_REQUEST',
+        matchId: String(match.id),
+        userId: String(fromUserId),
+        userName: senderName,
+      },
+    }).catch(err => logger.error('Failed to send match request notification:', err));
+
     logger.info(`Match request sent from ${fromUserId} to ${receiverId}`);
 
     // Return match with remaining count for free users
@@ -167,6 +184,25 @@ export const acceptMatchRequest = async (matchId, userId) => {
       where: { id: matchId },
       data: { status: MATCH_STATUS.ACCEPTED, respondedAt: new Date() },
     });
+
+    // ADDED: Send push notification to the original sender
+    const accepter = await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: { select: { firstName: true } } },
+    });
+    const accepterName = accepter?.profile?.firstName || 'Someone';
+    notificationService.createNotification({
+      userId: match.senderId,
+      type: NOTIFICATION_TYPES.MATCH_ACCEPTED,
+      title: 'Request Accepted! 🎉',
+      message: `${accepterName} accepted your interest request. Start chatting now!`,
+      data: {
+        type: 'MATCH_ACCEPTED',
+        matchId: String(matchId),
+        userId: String(userId),
+        userName: accepterName,
+      },
+    }).catch(err => logger.error('Failed to send match accepted notification:', err));
 
     logger.info(`Match request accepted: ${matchId}`);
     return updatedMatch;
