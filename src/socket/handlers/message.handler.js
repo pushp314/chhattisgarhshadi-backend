@@ -1,7 +1,7 @@
 import { messageService } from '../../services/message.service.js';
 import { logger } from '../../config/logger.js';
-import { SOCKET_EVENTS } from '../../utils/constants.js';
-// We no longer need the local emitToUser, as we use the main `io` instance
+import { SOCKET_EVENTS, MESSAGE_STATUS } from '../../utils/constants.js';
+import prisma from '../../config/database.js';
 
 /**
  * Setup message event handlers
@@ -20,8 +20,7 @@ export const setupMessageHandlers = (io, socket) => {
         throw new Error('Invalid message data');
       }
 
-      // 1. Save message to database
-      // This now returns a message with "safe" user objects
+      // 1. Save message to database (status: SENT by default)
       const message = await messageService.sendMessage(
         socket.userId,
         receiverId,
@@ -30,7 +29,7 @@ export const setupMessageHandlers = (io, socket) => {
 
       // 2. Emit to receiver's room (will send to all their devices)
       io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
-      
+
       // 3. Acknowledge to sender that the message was sent successfully
       if (callback) {
         callback({ success: true, message });
@@ -50,12 +49,45 @@ export const setupMessageHandlers = (io, socket) => {
   });
 
   /**
+   * ADDED: Handle message delivered confirmation
+   * When receiver's app receives a message, it sends this to confirm delivery
+   */
+  socket.on(SOCKET_EVENTS.MESSAGE_DELIVERED, async (data) => {
+    try {
+      const { messageId, senderId } = data;
+
+      if (!messageId) {
+        throw new Error('Invalid message ID for delivery confirmation');
+      }
+
+      // Update message status in database
+      await prisma.message.update({
+        where: { id: messageId },
+        data: {
+          status: MESSAGE_STATUS.DELIVERED,
+          deliveredAt: new Date(),
+        },
+      });
+
+      // Notify the sender that their message was delivered
+      io.to(`user:${senderId}`).emit(SOCKET_EVENTS.MESSAGE_DELIVERED, {
+        messageId,
+        deliveredAt: new Date().toISOString(),
+      });
+
+      logger.info(`Message ${messageId} marked as delivered`);
+    } catch (error) {
+      logger.error('Socket error marking message as delivered:', error.message);
+    }
+  });
+
+  /**
    * Handle marking messages as read
    */
   socket.on(SOCKET_EVENTS.MESSAGE_READ, async (data) => {
     try {
       // `userId` here is the *other* user, whose messages I am reading
-      const { userId: otherUserId } = data; 
+      const { userId: otherUserId } = data;
 
       if (!otherUserId) {
         throw new Error('Invalid user ID for marking messages as read');

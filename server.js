@@ -7,6 +7,8 @@ import { initializeFirebase } from './src/config/firebase.js';
 import prisma from './src/config/database.js';
 // ADDED: Import subscription cron jobs
 import { initSubscriptionCronJobs } from './src/services/subscriptionCron.service.js';
+// ADDED: Import Redis for caching
+import { initializeRedis, closeRedis } from './src/config/redis.js';
 
 const PORT = config.PORT || 8080;
 
@@ -42,6 +44,9 @@ const startServer = async () => {
 
     // Initialize Firebase (optional)
     initializeFirebase();
+
+    // ADDED: Initialize Redis for caching (optional - won't fail if Redis unavailable)
+    initializeRedis();
 
     // Start listening
     httpServer.listen(PORT, () => {

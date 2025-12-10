@@ -3,6 +3,8 @@ import { subscriptionController } from '../controllers/subscription.controller.j
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.middleware.js';
 import { getPlansSchema } from '../validation/subscription.validation.js';
+// ADDED: Import cache middleware for performance
+import { cachePlans } from '../middleware/cache.middleware.js';
 
 const router = Router();
 
@@ -11,8 +13,9 @@ const router = Router();
 // want to see plans before finishing their profile.
 router.use(authenticate);
 
+// GET /subscription-plans - cached for 1 hour (rarely changes)
 router
   .route('/')
-  .get(validate(getPlansSchema), subscriptionController.getActivePlans);
+  .get(validate(getPlansSchema), cachePlans, subscriptionController.getActivePlans);
 
 export default router;

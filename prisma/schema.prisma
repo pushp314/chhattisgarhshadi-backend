@@ -883,6 +883,13 @@ model BlockedUser {
 // MESSAGING SYSTEM
 // ============================================
 
+enum MessageStatus {
+  SENT      // Message sent to server
+  DELIVERED // Message received by recipient's device
+  READ      // Message read by recipient
+  FAILED    // Message failed to send
+}
+
 model Message {
   id         Int  @id @default(autoincrement())
   senderId   Int
@@ -894,6 +901,10 @@ model Message {
   attachmentUrl  String? @db.Text // LOCAL PATH: /uploads/chat-media/{conversationId}/img-{timestamp}.jpg
   attachmentType String? @db.VarChar(50)
 
+  // ADDED: Message delivery status (sent → delivered → read)
+  status      MessageStatus @default(SENT)
+  deliveredAt DateTime?
+  
   isRead Boolean   @default(false)
   readAt DateTime?
 
@@ -905,6 +916,7 @@ model Message {
 
   @@index([senderId, receiverId])
   @@index([receiverId, isRead])
+  @@index([receiverId, status]) // ADDED: for delivery status queries
   @@index([createdAt(sort: Desc)])
   @@map("messages")
 }

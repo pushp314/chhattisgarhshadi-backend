@@ -9,6 +9,8 @@ import {
   objectIdSchema,
   mediaIdSchema
 } from '../validation/profile.validation.js';
+// ADDED: Import cache middleware for performance
+import { cacheProfile, cacheMiddleware } from '../middleware/cache.middleware.js';
 
 const router = Router();
 
@@ -24,10 +26,12 @@ router.put('/me', validate(updateProfileSchema), profileController.updateMyProfi
 router.delete('/me', profileController.deleteMyProfile);
 
 
+// Search profiles - cached for 5 minutes
 router.get(
   '/search',
   requireCompleteProfile,
   validate(searchProfilesSchema),
+  cacheMiddleware({ prefix: 'search:', ttl: 300 }),
   profileController.searchProfiles
 );
 
@@ -37,10 +41,12 @@ router.delete(
   profileController.deletePhoto
 );
 
+// Get public profile by userId - cached for 5 minutes
 router.get(
   '/:userId',
   requireCompleteProfile,
   validate(objectIdSchema),
+  cacheProfile,
   profileController.getProfileByUserId
 );
 

@@ -221,6 +221,7 @@ export const SOCKET_EVENTS = {
   JOIN: 'join',
   MESSAGE_SEND: 'message:send',
   MESSAGE_RECEIVED: 'message:received',
+  MESSAGE_DELIVERED: 'message:delivered', // ADDED: Delivery receipts
   MESSAGE_READ: 'message:read',
   NOTIFICATION_SEND: 'notification:send',
   NOTIFICATION_RECEIVED: 'notification:received',
@@ -228,6 +229,16 @@ export const SOCKET_EVENTS = {
   USER_OFFLINE: 'user:offline',
   TYPING_START: 'typing:started',
   TYPING_STOP: 'typing:stopped',
+};
+
+/**
+ * Message Status (Matches Prisma Enum)
+ */
+export const MESSAGE_STATUS = {
+  SENT: 'SENT',
+  DELIVERED: 'DELIVERED',
+  READ: 'READ',
+  FAILED: 'FAILED',
 };
 
 /**
