@@ -55,26 +55,31 @@ export const sendMessage = async (senderId, receiverId, content) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Receiver not found');
     }
 
-    // --- Receiver Subscription Check [ADDED] ---
-    // Both users must have premium to chat
-    const receiverIsPremiumRole = receiver.role === 'PREMIUM_USER';
-    const receiverSubscription = await prisma.userSubscription.findFirst({
-      where: {
-        userId: receiverId,
-        status: 'ACTIVE',
-        endDate: {
-          gt: new Date(),
+    // --- SENDER Subscription Check ---
+    // Only the SENDER needs premium to send messages
+    // Premium users can message anyone, non-premium users can receive but not send
+    const sender = await prisma.user.findUnique({
+      where: { id: senderId },
+      include: {
+        subscriptions: {
+          where: {
+            status: 'ACTIVE',
+            endDate: { gt: new Date() },
+          },
         },
       },
     });
 
-    if (!receiverSubscription && !receiverIsPremiumRole) {
+    const senderIsPremiumRole = sender?.role === 'PREMIUM_USER';
+    const senderHasActiveSubscription = sender?.subscriptions?.length > 0;
+
+    if (!senderIsPremiumRole && !senderHasActiveSubscription) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
-        'This user does not have an active premium subscription. Both users need premium to chat.'
+        'You need a premium subscription to send messages. Upgrade to start chatting!'
       );
     }
-    // --- End Receiver Subscription Check ---
+    // --- End SENDER Subscription Check ---
 
     const message = await prisma.message.create({
       data: {
