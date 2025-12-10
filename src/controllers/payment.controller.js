@@ -73,8 +73,29 @@ export const getMyPayments = asyncHandler(async (req, res) => {
     .json(new ApiResponse(HTTP_STATUS.OK, payments, 'Payments retrieved successfully'));
 });
 
+/**
+ * Create upgrade order (for existing subscribers to upgrade their plan)
+ * Credits remaining days from current subscription + adds new plan duration
+ */
+export const createUpgradeOrder = asyncHandler(async (req, res) => {
+  const { planId } = req.body;
+
+  const order = await paymentService.createUpgradeOrder(req.user.id, planId);
+
+  res
+    .status(HTTP_STATUS.CREATED)
+    .json(
+      new ApiResponse(
+        HTTP_STATUS.CREATED,
+        order,
+        `Upgrade order created. ${order.remainingDaysCredited} days carried forward. New subscription: ${order.totalDays} days.`
+      )
+    );
+});
+
 export const paymentController = {
   createOrder,
+  createUpgradeOrder,
   verifyPayment,
   handleWebhook,
   getPaymentById,

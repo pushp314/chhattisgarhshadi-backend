@@ -5,6 +5,8 @@ import { logger } from './src/config/logger.js';
 import { initializeSocket } from './src/socket/index.js';
 import { initializeFirebase } from './src/config/firebase.js';
 import prisma from './src/config/database.js';
+// ADDED: Import subscription cron jobs
+import { initSubscriptionCronJobs } from './src/services/subscriptionCron.service.js';
 
 const PORT = config.PORT || 8080;
 
@@ -45,6 +47,9 @@ const startServer = async () => {
     httpServer.listen(PORT, () => {
       logger.info(`Server is running on http://localhost:${PORT}`);
       logger.info(`Environment: ${config.NODE_ENV}`);
+
+      // ADDED: Initialize subscription cron jobs (expiry reminders, expired handling)
+      initSubscriptionCronJobs();
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

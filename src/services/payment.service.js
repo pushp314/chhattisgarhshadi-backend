@@ -120,6 +120,138 @@ export const createOrder = async (userId, planId) => {
 };
 
 /**
+ * Create Razorpay order for subscription UPGRADE
+ * Extends existing subscription by calculating remaining days + new plan duration
+ * @param {number} userId - User ID
+ * @param {number} newPlanId - The ID of the new subscription plan to upgrade to
+ * @returns {Promise<Object>}
+ */
+export const createUpgradeOrder = async (userId, newPlanId) => {
+  try {
+    // Check if Razorpay is configured
+    if (!isRazorpayConfigured()) {
+      throw new ApiError(
+        HTTP_STATUS.SERVICE_UNAVAILABLE,
+        'Payment service is not configured. Please contact administrator.'
+      );
+    }
+
+    // 1. Get current active subscription
+    const currentSubscription = await prisma.userSubscription.findFirst({
+      where: {
+        userId,
+        status: SUBSCRIPTION_STATUS.ACTIVE,
+        endDate: { gt: new Date() },
+      },
+      include: { plan: true },
+    });
+
+    // 2. Get the new plan
+    const newPlan = await prisma.subscriptionPlan.findUnique({
+      where: { id: newPlanId, isActive: true },
+    });
+
+    if (!newPlan) {
+      throw new ApiError(
+        HTTP_STATUS.NOT_FOUND,
+        'Subscription plan not found or is not active'
+      );
+    }
+
+    // 3. Calculate remaining days from current subscription
+    let remainingDays = 0;
+    if (currentSubscription) {
+      const now = new Date();
+      const endDate = new Date(currentSubscription.endDate);
+      remainingDays = Math.max(0, Math.ceil((endDate - now) / (1000 * 60 * 60 * 24)));
+      logger.info(`User ${userId} has ${remainingDays} days remaining on current subscription`);
+    }
+
+    // 4. Calculate new end date = now + remaining days + new plan duration
+    const totalDays = remainingDays + newPlan.duration;
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + totalDays);
+
+    // 5. Create new subscription record (will replace current one on payment success)
+    const subscription = await prisma.userSubscription.create({
+      data: {
+        userId,
+        planId: newPlanId,
+        status: SUBSCRIPTION_STATUS.PENDING,
+        startDate: new Date(),
+        endDate,
+        // Mark as upgrade
+        metadata: JSON.stringify({
+          isUpgrade: true,
+          previousSubscriptionId: currentSubscription?.id,
+          remainingDaysCarried: remainingDays,
+        }),
+      },
+    });
+
+    // 6. Create payment record
+    const transactionId = `txn_upgrade_${Date.now()}_${userId}_${newPlanId}`;
+    const payment = await prisma.payment.create({
+      data: {
+        userId,
+        subscriptionId: subscription.id,
+        amount: newPlan.price,
+        currency: 'INR',
+        status: PAYMENT_STATUS.PENDING,
+        transactionId,
+      },
+    });
+
+    // 7. Create Razorpay order
+    const razorpayOrder = await razorpayInstance.orders.create({
+      amount: newPlan.price * 100, // Convert to paise
+      currency: 'INR',
+      receipt: `upgrade_${subscription.id}_pay_${payment.id}`,
+      notes: {
+        userId,
+        subscriptionId: subscription.id,
+        planId: newPlan.id,
+        isUpgrade: true,
+        remainingDays,
+      },
+    });
+
+    // 8. Update payment with Razorpay order ID
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        razorpayOrderId: razorpayOrder.id,
+        transactionId: `txn_${payment.id}`,
+      },
+    });
+
+    logger.info(
+      `Upgrade order created: ${razorpayOrder.id} for user ${userId}. Remaining days: ${remainingDays}, New total: ${totalDays} days`
+    );
+
+    return {
+      orderId: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      paymentId: payment.id,
+      key: config.RAZORPAY_KEY_ID,
+      razorpayKey: config.RAZORPAY_KEY_ID,
+      // Additional info for frontend
+      remainingDaysCredited: remainingDays,
+      totalDays,
+      newEndDate: endDate.toISOString(),
+    };
+  } catch (error) {
+    logger.error('Error in createUpgradeOrder:', error);
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(
+      HTTP_STATUS.INTERNAL_SERVER_ERROR,
+      `Failed to create upgrade order: ${error.message}`
+    );
+  }
+};
+
+/**
  * Verify payment signature (for client-side confirmation)
  * @param {Object} data - { razorpay_order_id, razorpay_payment_id, razorpay_signature }
  * @returns {Promise<Object>}
@@ -431,6 +563,7 @@ export const getUserPayments = async (userId) => {
 
 export const paymentService = {
   createOrder,
+  createUpgradeOrder,
   verifyPayment,
   handleWebhook,
   getPaymentById,

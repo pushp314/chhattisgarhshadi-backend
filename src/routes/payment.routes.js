@@ -26,6 +26,12 @@ router.post(
   paymentController.verifyPayment
 );
 
+// Upgrade existing subscription (carries over remaining days)
+router.post(
+  '/upgrade',
+  validate(createOrderSchema), // Same validation - needs planId
+  paymentController.createUpgradeOrder
+);
 
 router.get('/me', paymentController.getMyPayments);
 
