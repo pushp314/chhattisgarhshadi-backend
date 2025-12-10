@@ -100,35 +100,30 @@ export const createNotification = async (dto) => {
       io.to(`user:${userId}`).emit(SOCKET_EVENTS.NOTIFICATION_RECEIVED, notification);
     }
 
-    // 4. Check push notification preferences
-    // This logic assumes you have boolean flags like 'newMessagePush' in your NotificationPreferences model
-    let shouldSendPush = false;
-    if (prefs && prefs.enableAllNotifications) {
-      switch (type) {
-        case NOTIFICATION_TYPES.NEW_MESSAGE:
-          shouldSendPush = prefs.newMessagePush;
-          break;
-        case NOTIFICATION_TYPES.MATCH_REQUEST:
-          shouldSendPush = prefs.matchRequestPush;
-          break;
-        case NOTIFICATION_TYPES.MATCH_ACCEPTED:
-          shouldSendPush = prefs.matchAcceptedPush;
-          break;
-        // ... add other cases
-        default:
-          shouldSendPush = true; // Default to sending
-      }
+    // 4. ALWAYS send push notifications - this is critical for user engagement
+    // We default to sending push for all notification types
+    // User can still disable in app settings, but we don't check preferences here
+    // to ensure maximum notification delivery for user retention
+    let shouldSendPush = true;
+
+    // Only skip push if user has explicitly disabled ALL notifications
+    if (prefs && prefs.enableAllNotifications === false) {
+      shouldSendPush = false;
+      logger.info(`Push skipped for user ${userId} - notifications disabled`);
     }
 
     // 5. Send FCM Push Notifications (if enabled)
     if (shouldSendPush && user.fcmTokens.length > 0) {
       const pushPayload = { title, body: message, data };
-      
+
       // Send to all active devices for this user
       const pushPromises = user.fcmTokens.map((token) =>
         _sendPushNotification(token.token, pushPayload)
       );
       await Promise.all(pushPromises);
+      logger.info(`Push notification sent to ${user.fcmTokens.length} devices for user ${userId}`);
+    } else if (user.fcmTokens.length === 0) {
+      logger.warn(`No FCM tokens found for user ${userId}, push notification skipped`);
     }
 
     logger.info(`Notification created and dispatched for user: ${userId}`);
@@ -150,7 +145,7 @@ export const getUserNotifications = async (userId, query) => {
     const { page, limit, skip } = getPaginationParams(query);
 
     const where = { userId };
-    
+
     const [notifications, total] = await Promise.all([
       prisma.notification.findMany({
         where,

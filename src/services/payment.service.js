@@ -7,10 +7,13 @@ import {
   PAYMENT_STATUS,
   SUBSCRIPTION_STATUS,
   USER_ROLES,
+  NOTIFICATION_TYPES,
 } from '../utils/constants.js';
 import { logger } from '../config/logger.js';
 import crypto from 'crypto';
 import { getSocketIoInstance } from '../socket/index.js';
+// ADDED: Import notification service for push notifications
+import { notificationService } from './notification.service.js';
 
 /**
  * Create Razorpay order
@@ -288,6 +291,19 @@ const handlePaymentCaptured = async (paymentEntity) => {
         endDate: payment.subscription.endDate,
       });
     }
+
+    // 5. ADDED: Send push notification for subscription activation
+    notificationService.createNotification({
+      userId: payment.userId,
+      type: NOTIFICATION_TYPES.SUBSCRIPTION_ACTIVATED,
+      title: 'Welcome to Premium! 🎉',
+      message: 'Your subscription is now active. Enjoy unlimited messaging, contact viewing, and more!',
+      data: {
+        type: 'SUBSCRIPTION_ACTIVATED',
+        planId: String(payment.subscription.planId),
+        endDate: payment.subscription.endDate.toISOString(),
+      },
+    }).catch(err => logger.error('Failed to send subscription notification:', err));
 
     logger.info(`Payment captured and subscription activated: ${payment.id}`);
   } catch (error) {

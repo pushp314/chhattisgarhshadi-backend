@@ -1,9 +1,11 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
 // FIX: Removed unused ERROR_MESSAGES import
-import { HTTP_STATUS } from '../utils/constants.js';
+import { HTTP_STATUS, NOTIFICATION_TYPES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
+// ADDED: Import notification service
+import { notificationService } from './notification.service.js';
 
 // Reusable select for public user data (to nest in the response)
 const userPublicSelect = {
@@ -26,6 +28,10 @@ export const addToShortlist = async (userId, shortlistedUserId, note) => {
     throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'You cannot shortlist yourself');
   }
 
+  // Define limit constant at the top of function scope
+  const FREE_SHORTLIST_LIMIT = 10;
+  let currentCount = 0;
+
   try {
     // --- Check User Subscription Status ---
     const user = await prisma.user.findUnique({
@@ -35,6 +41,7 @@ export const addToShortlist = async (userId, shortlistedUserId, note) => {
           where: { status: 'ACTIVE', endDate: { gt: new Date() } },
           take: 1,
         },
+        profile: { select: { firstName: true } },
       },
     });
 
@@ -42,8 +49,7 @@ export const addToShortlist = async (userId, shortlistedUserId, note) => {
 
     // --- Free User Limit Check ---
     if (!isPremium) {
-      const FREE_SHORTLIST_LIMIT = 10;
-      const currentCount = await prisma.shortlist.count({
+      currentCount = await prisma.shortlist.count({
         where: { userId },
       });
 
@@ -73,6 +79,20 @@ export const addToShortlist = async (userId, shortlistedUserId, note) => {
       },
     });
     logger.info(`User ${userId} shortlisted user ${shortlistedUserId}`);
+
+    // ADDED: Send push notification to shortlisted user
+    const shortlisterName = user?.profile?.firstName || 'Someone';
+    notificationService.createNotification({
+      userId: shortlistedUserId,
+      type: NOTIFICATION_TYPES.SHORTLISTED || 'SHORTLISTED',
+      title: 'You\'ve been shortlisted! ⭐',
+      message: `${shortlisterName} added you to their shortlist. Check their profile!`,
+      data: {
+        type: 'SHORTLISTED',
+        userId: String(userId),
+        userName: shortlisterName,
+      },
+    }).catch(err => logger.error('Failed to send shortlist notification:', err));
 
     // Return with remaining count for free users
     const remaining = isPremium ? null : (FREE_SHORTLIST_LIMIT - (currentCount + 1));

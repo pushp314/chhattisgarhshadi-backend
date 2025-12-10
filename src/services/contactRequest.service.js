@@ -1,12 +1,11 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, CONTACT_REQUEST_STATUS, USER_ROLES } from '../utils/constants.js';
+import { HTTP_STATUS, CONTACT_REQUEST_STATUS, USER_ROLES, NOTIFICATION_TYPES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 import { blockService } from './block.service.js';
-// We need to check the user's own settings and the receiver's settings
-// FIX: Removed unused import 'privacyService'
-// import { privacyService } from './privacy.service.js'; 
+// ADDED: Import notification service for push notifications
+import { notificationService } from './notification.service.js';
 
 // Reusable select for public user data
 const userPublicSelect = {
@@ -106,7 +105,21 @@ export const createContactRequest = async (requesterId, data) => {
       },
     });
 
-    // 7. TODO: Send a notification to the `profileId` user
+    // 7. Send notification to the profile owner about contact request
+    const requesterName = requester?.profile?.firstName || 'Someone';
+    notificationService.createNotification({
+      userId: profileId,
+      type: NOTIFICATION_TYPES.CONTACT_REQUEST || 'CONTACT_REQUEST',
+      title: 'Contact Info Requested 📞',
+      message: `${requesterName} wants to view your ${requestType.toLowerCase()} details.`,
+      data: {
+        type: 'CONTACT_REQUEST',
+        requestId: String(request.id),
+        userId: String(requesterId),
+        userName: requesterName,
+        requestType,
+      },
+    }).catch(err => logger.error('Failed to send contact request notification:', err));
 
     logger.info(`Contact request sent from ${requesterId} to ${profileId} for ${requestType}`);
     return request;
@@ -233,7 +246,36 @@ export const respondToRequest = async (userId, requestId, status) => {
       },
     });
 
-    // TODO: Send notification to `requesterId` about the response
+    // Send notification to requester about the response
+    const responderName = (await prisma.user.findUnique({
+      where: { id: userId },
+      include: { profile: { select: { firstName: true } } },
+    }))?.profile?.firstName || 'Someone';
+
+    const notificationType = status === CONTACT_REQUEST_STATUS.APPROVED
+      ? (NOTIFICATION_TYPES.CONTACT_APPROVED || 'CONTACT_APPROVED')
+      : (NOTIFICATION_TYPES.CONTACT_REJECTED || 'CONTACT_REJECTED');
+
+    const notificationTitle = status === CONTACT_REQUEST_STATUS.APPROVED
+      ? 'Contact Request Approved! ✅'
+      : 'Contact Request Declined';
+
+    const notificationMessage = status === CONTACT_REQUEST_STATUS.APPROVED
+      ? `${responderName} approved your request. You can now view their contact info!`
+      : `${responderName} declined your contact request.`;
+
+    notificationService.createNotification({
+      userId: request.requesterId,
+      type: notificationType,
+      title: notificationTitle,
+      message: notificationMessage,
+      data: {
+        type: status === CONTACT_REQUEST_STATUS.APPROVED ? 'CONTACT_APPROVED' : 'CONTACT_REJECTED',
+        requestId: String(requestId),
+        userId: String(userId),
+        userName: responderName,
+      },
+    }).catch(err => logger.error('Failed to send contact response notification:', err));
 
     logger.info(`Contact request ${requestId} was ${status} by user ${userId}`);
     return updatedRequest;
