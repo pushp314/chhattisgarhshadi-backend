@@ -223,10 +223,24 @@ export const searchProfiles = async (query, currentUserId = null) => {
       }
     };
 
+    // ADDED: Auto-filter by opposite gender if user is logged in
     if (currentUserId) {
       const blockedIds = Array.from(await blockService.getAllBlockedUserIds(currentUserId));
       blockedIds.push(currentUserId);
       where.userId = { notIn: blockedIds };
+
+      // Get current user's gender and filter opposite
+      if (!gender) { // Only auto-filter if gender not explicitly provided
+        const currentUserProfile = await prisma.profile.findUnique({
+          where: { userId: currentUserId },
+          select: { gender: true },
+        });
+
+        if (currentUserProfile?.gender) {
+          // Filter opposite gender: Male sees Female, Female sees Male
+          where.gender = currentUserProfile.gender === 'MALE' ? 'FEMALE' : 'MALE';
+        }
+      }
     }
 
     if (gender) where.gender = gender;
