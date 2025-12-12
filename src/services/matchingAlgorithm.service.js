@@ -363,7 +363,6 @@ export const getDailyRecommendations = async (userId, limit = 10) => {
             userId: { not: userId },
             user: {
                 isActive: true,
-                isProfileComplete: true,
                 // Exclude blocked users
                 blockedBy: { none: { blockerId: userId } },
                 blockedUsers: { none: { blockedId: userId } },
