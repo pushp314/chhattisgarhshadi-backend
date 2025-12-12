@@ -19,12 +19,45 @@ const app = express();
 // This fixes the "X-Forwarded-For" header validation error from express-rate-limit
 app.set('trust proxy', 1);
 
+// ============================================
+// HTTPS ENFORCEMENT (Production Only) - A+ Security
+// ============================================
+app.use((req, res, next) => {
+  if (process.env.NODE_ENV === 'production' && req.headers['x-forwarded-proto'] !== 'https') {
+    return res.redirect(301, `https://${req.headers.host}${req.url}`);
+  }
+  next();
+});
+
 // Request ID tracking (for debugging and logging)
 app.use(requestIdMiddleware);
 
-// Security (relaxed for development)
+// ============================================
+// SECURITY HEADERS - Enhanced for A+ Score
+// ============================================
 if (process.env.NODE_ENV === 'production') {
-  app.use(helmet());
+  app.use(helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com"],
+        imgSrc: ["'self'", "data:", "https:", "blob:"],
+        connectSrc: ["'self'", "https://*.amazonaws.com", "wss:", "ws:"],
+        frameSrc: ["'none'"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+    crossOriginEmbedderPolicy: false, // Allow cross-origin resources
+    hsts: {
+      maxAge: 31536000, // 1 year
+      includeSubDomains: true,
+      preload: true,
+    },
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  }));
 } else {
   app.use(helmet({
     contentSecurityPolicy: false,
@@ -66,9 +99,18 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 
-// Parsers (with size limits to prevent DoS)
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+// ============================================
+// INPUT LENGTH LIMITS - A+ Security
+// ============================================
+app.use(express.json({
+  limit: '5mb', // Reduced from 10mb for security
+  strict: true,
+}));
+app.use(express.urlencoded({
+  extended: true,
+  limit: '5mb',
+  parameterLimit: 1000, // Max URL-encoded params
+}));
 
 // Data sanitization against NoSQL injection
 app.use(mongoSanitize({
@@ -103,6 +145,23 @@ if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));
 }
 
+// ============================================
+// HEALTH CHECK ENDPOINT - A+ Architecture
+// ============================================
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV || 'development',
+    version: '1.0.0',
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + 'MB',
+    },
+  });
+});
+
 // Root route - Welcome message
 app.get('/', (req, res) => {
   res.json({
@@ -112,7 +171,8 @@ app.get('/', (req, res) => {
     status: 'running',
     timestamp: new Date().toISOString(),
     endpoints: {
-      health: '/api/v1/health',
+      health: '/health',
+      api: '/api/v1',
       auth: '/api/v1/auth',
       users: '/api/v1/users',
       profiles: '/api/v1/profiles',
@@ -122,8 +182,11 @@ app.get('/', (req, res) => {
   });
 });
 
-// API Routes
+// API Routes (versioned)
 app.use('/api/v1', routes);
+
+// Future API version placeholder
+// app.use('/api/v2', v2Routes);
 
 // 404 Handler
 app.use((req, res) => {

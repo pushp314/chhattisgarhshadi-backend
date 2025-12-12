@@ -1542,3 +1542,120 @@ model NotificationPreferences {
 
   @@map("notification_preferences")
 }
+
+// ============================================
+// AUDIT & MONITORING (A+ IMPROVEMENTS)
+// ============================================
+
+/// Audit Log tracks all critical database changes for compliance and debugging
+model AuditLog {
+  id Int @id @default(autoincrement())
+
+  // What was changed
+  tableName  String @db.VarChar(100)
+  recordId   Int
+  action     String @db.VarChar(20) // INSERT, UPDATE, DELETE
+
+  // Change details
+  oldValues Json? // Previous state (for UPDATE/DELETE)
+  newValues Json? // New state (for INSERT/UPDATE)
+  changedFields String? @db.Text // List of changed fields
+
+  // Who made the change
+  changedBy   Int?
+  changedByType String @default("USER") @db.VarChar(20) // USER, ADMIN, SYSTEM
+
+  // Request context
+  ipAddress  String? @db.Inet
+  userAgent  String? @db.Text
+  requestId  String? @db.VarChar(50) // For tracing
+
+  // Timestamps
+  changedAt DateTime @default(now())
+
+  @@index([tableName, recordId])
+  @@index([changedBy])
+  @@index([changedAt(sort: Desc)])
+  @@index([action])
+  @@index([tableName, changedAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+/// Database Metrics for performance monitoring
+model DatabaseMetrics {
+  id Int @id @default(autoincrement())
+
+  // Metric details
+  metricName  String @db.VarChar(100) // e.g., "slow_query", "table_size", "index_usage"
+  metricValue Float
+  metricUnit  String @db.VarChar(20) // ms, rows, bytes, percent
+
+  // Context
+  tableName   String? @db.VarChar(100)
+  queryType   String? @db.VarChar(20) // SELECT, INSERT, UPDATE, DELETE
+
+  // Additional data
+  metadata Json?
+
+  // Timestamp
+  recordedAt DateTime @default(now())
+
+  @@index([metricName, recordedAt(sort: Desc)])
+  @@index([tableName])
+  @@map("database_metrics")
+}
+
+/// Search Log for analytics and query optimization
+model SearchLog {
+  id Int @id @default(autoincrement())
+
+  // Who searched
+  userId Int?
+
+  // Search parameters
+  searchFilters Json // All applied filters
+  resultCount   Int  // Number of results returned
+
+  // Performance
+  executionTimeMs Int // Query execution time
+
+  // Context
+  searchType String @db.VarChar(50) // PROFILE, MATCH, QUICK
+  platform   String @default("MOBILE") @db.VarChar(20) // MOBILE, WEB, ADMIN
+
+  // Timestamp
+  searchedAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([searchedAt(sort: Desc)])
+  @@index([searchType, searchedAt(sort: Desc)])
+  @@index([executionTimeMs(sort: Desc)]) // Find slow searches
+  @@map("search_logs")
+}
+
+/// API Rate Limit Tracking for security
+model ApiRateLimitLog {
+  id Int @id @default(autoincrement())
+
+  // Who hit the limit
+  userId    Int?
+  ipAddress String @db.Inet
+
+  // What endpoint
+  endpoint String @db.VarChar(255)
+  method   String @db.VarChar(10) // GET, POST, PUT, DELETE
+
+  // Rate limit info
+  limitHitCount Int @default(1)
+  windowStart   DateTime
+  windowEnd     DateTime
+
+  // Timestamp
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([ipAddress, createdAt(sort: Desc)])
+  @@index([endpoint])
+  @@map("api_rate_limit_logs")
+}
+
