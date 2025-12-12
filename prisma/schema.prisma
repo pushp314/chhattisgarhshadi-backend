@@ -664,9 +664,10 @@ model PartnerPreference {
   heightTo   Int?
 
   // Religion & Caste
-  religion     String? @db.Text // JSON array
-  caste        String? @db.Text
-  motherTongue String? @db.Text
+  religion       String?  @db.Text // JSON array
+  caste          String?  @db.Text
+  casteMandatory Boolean? @default(false) // If true, only same/preferred caste matches
+  motherTongue   String?  @db.Text
 
   // Marital Status
   maritalStatus String? @db.Text

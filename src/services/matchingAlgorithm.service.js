@@ -59,10 +59,11 @@ export const calculateMatchScore = async (userId, targetUserId) => {
         // 3. Lifestyle compatibility (15%)
         breakdown.lifestyle = calculateLifestyleScore(userProfile, targetProfile);
 
-        // 4. Religion & Caste (20%)
+        // 4. Religion & Caste (20%) - pass userProfile for same-caste check
         breakdown.religionCaste = calculateReligionScore(
             userProfile.partnerPreference,
-            targetProfile
+            targetProfile,
+            userProfile
         );
 
         // 5. Astrology (15%) - Use existing service
@@ -239,8 +240,10 @@ const calculateLifestyleScore = (profile1, profile2) => {
 
 /**
  * Calculate religion and caste score
+ * Handles casteMandatory preference - if true, only same caste gets 100%, otherwise 0%
+ * If casteMandatory is false or not set, caste is still scored but not a deal-breaker
  */
-const calculateReligionScore = (preferences, targetProfile) => {
+const calculateReligionScore = (preferences, targetProfile, userProfile) => {
     if (!preferences) return 50;
 
     let score = 0;
@@ -257,15 +260,39 @@ const calculateReligionScore = (preferences, targetProfile) => {
         factors++;
     }
 
-    // Caste
-    if (preferences.caste && targetProfile.caste) {
-        const prefCastes = preferences.caste;
-        if (prefCastes.includes(targetProfile.caste)) {
-            score += 100;
+    // Caste - Enhanced logic
+    if (targetProfile.caste) {
+        const isCasteMandatory = preferences.casteMandatory === true;
+        const userCaste = userProfile?.caste;
+        const targetCaste = targetProfile.caste;
+        const prefCastes = preferences.caste || [];
+
+        if (isCasteMandatory) {
+            // MANDATORY: Same caste gets 100%, different caste gets 0%
+            if (userCaste && userCaste === targetCaste) {
+                score += 100; // Same caste - perfect match
+            } else if (prefCastes.length > 0 && prefCastes.includes(targetCaste)) {
+                score += 100; // In preferred castes
+            } else {
+                score += 0; // Caste mismatch when mandatory
+            }
         } else {
-            score += 30; // Some flexibility for caste
+            // NOT MANDATORY: Prioritize same caste, but allow others
+            if (userCaste && userCaste === targetCaste) {
+                score += 100; // Same caste - bonus
+            } else if (prefCastes.length > 0 && prefCastes.includes(targetCaste)) {
+                score += 90; // Preferred caste
+            } else {
+                score += 60; // Different caste but acceptable
+            }
         }
         factors++;
+    }
+
+    // Sub-caste bonus (additional points for same sub-caste)
+    if (userProfile?.subCaste && targetProfile.subCaste &&
+        userProfile.subCaste === targetProfile.subCaste) {
+        score += 20; // Bonus for same sub-caste
     }
 
     // Mother tongue
@@ -279,7 +306,7 @@ const calculateReligionScore = (preferences, targetProfile) => {
         factors++;
     }
 
-    return factors > 0 ? Math.round(score / factors) : 50;
+    return factors > 0 ? Math.min(100, Math.round(score / factors)) : 50;
 };
 
 /**
@@ -330,19 +357,42 @@ export const getDailyRecommendations = async (userId, limit = 10) => {
         // Determine opposite gender
         const targetGender = userProfile.gender === 'MALE' ? 'FEMALE' : 'MALE';
 
+        // Build where clause for potential matches
+        const whereClause = {
+            gender: targetGender,
+            userId: { not: userId },
+            user: {
+                isActive: true,
+                isProfileComplete: true,
+                // Exclude blocked users
+                blockedBy: { none: { blockerId: userId } },
+                blockedUsers: { none: { blockedId: userId } },
+            },
+        };
+
+        // If caste is mandatory and user has caste preferences, filter by caste
+        const preferences = userProfile.partnerPreference;
+        if (preferences?.casteMandatory === true) {
+            const allowedCastes = [];
+
+            // Always allow same caste
+            if (userProfile.caste) {
+                allowedCastes.push(userProfile.caste);
+            }
+
+            // Also allow explicitly preferred castes
+            if (preferences.caste && preferences.caste.length > 0) {
+                allowedCastes.push(...preferences.caste);
+            }
+
+            if (allowedCastes.length > 0) {
+                whereClause.caste = { in: [...new Set(allowedCastes)] }; // Remove duplicates
+            }
+        }
+
         // Get potential matches (excluding blocked, already matched, etc.)
         const potentialMatches = await prisma.profile.findMany({
-            where: {
-                gender: targetGender,
-                userId: { not: userId },
-                user: {
-                    isActive: true,
-                    isProfileComplete: true,
-                    // Exclude blocked users
-                    blockedBy: { none: { blockerId: userId } },
-                    blockedUsers: { none: { blockedId: userId } },
-                },
-            },
+            where: whereClause,
             include: {
                 user: { select: { id: true } },
                 photos: { take: 1 },
