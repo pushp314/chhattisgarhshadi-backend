@@ -6,6 +6,7 @@ import { setupMessageHandlers } from './handlers/message.handler.js';
 import { setupNotificationHandlers } from './handlers/notification.handler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
+import { setOnline, setOffline } from '../services/onlineStatus.service.js';
 
 /**
  * Stores mapping of userId to a Set of socket.id
@@ -53,7 +54,7 @@ export const initializeSocket = (httpServer, config) => {
       socket.userEmail = decoded.email;
 
       if (!socket.userId) {
-         return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Invalid token payload'));
+        return next(new ApiError(HTTP_STATUS.UNAUTHORIZED, 'Invalid token payload'));
       }
 
       logger.info(`Socket authenticating for user: ${socket.userId}`);
@@ -74,12 +75,14 @@ export const initializeSocket = (httpServer, config) => {
       onlineUsers.set(socket.userId, new Set());
     }
     const userSockets = onlineUsers.get(socket.userId);
-    
+
     // 2. If this is the first socket for this user, broadcast online status
     if (userSockets.size === 0) {
       socket.broadcast.emit(SOCKET_EVENTS.USER_ONLINE, {
         userId: socket.userId,
       });
+      // Persist online status to database
+      setOnline(socket.userId).catch(err => logger.error('Failed to set online status:', err));
     }
     userSockets.add(socket.id);
 
@@ -115,6 +118,8 @@ export const initializeSocket = (httpServer, config) => {
           socket.broadcast.emit(SOCKET_EVENTS.USER_OFFLINE, {
             userId: socket.userId,
           });
+          // Persist offline status and last seen to database
+          setOffline(socket.userId).catch(err => logger.error('Failed to set offline status:', err));
         }
       }
     });

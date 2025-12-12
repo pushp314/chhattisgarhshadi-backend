@@ -276,6 +276,10 @@ model User {
   deviceInfo String? @db.Text // JSON
   userAgent  String? @db.Text
 
+  // Online Status
+  isOnline Boolean   @default(false)
+  lastSeen DateTime?
+
   // Timestamps
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt

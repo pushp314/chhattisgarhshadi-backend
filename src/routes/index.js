@@ -110,6 +110,10 @@ import { authenticate } from '../middleware/auth.js';
 import { getProfileCompletion } from '../controllers/profileCompletion.controller.js';
 router.get('/profile/completion', authenticate, getProfileCompletion);
 
+// Recommendations/Matching routes
+import recommendationsRoutes from './recommendations.routes.js';
+router.use('/recommendations', recommendationsRoutes);
+
 // Health check endpoint with detailed status
 import prisma from '../config/database.js';
 
