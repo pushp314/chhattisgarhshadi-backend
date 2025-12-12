@@ -99,7 +99,6 @@ export const getAgentById = async (agentId) => {
       where: { id: agentId, deletedAt: null },
       include: {
         users: { take: 10, orderBy: { createdAt: 'desc' } }, // Include recent users
-        commissions: { take: 10, orderBy: { createdAt: 'desc' } }, // Include recent commissions
       }
     });
 
