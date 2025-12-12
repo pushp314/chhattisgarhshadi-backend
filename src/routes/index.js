@@ -93,6 +93,23 @@ router.use('/horoscope', horoscopeRoutes);
 import adminRoutes from './admin.routes.js';
 router.use('/admin', adminRoutes);
 
+// ============================================
+// NEW PREMIUM FEATURES
+// ============================================
+
+// Boost/Spotlight routes
+import boostRoutes from './boost.routes.js';
+router.use('/boost', boostRoutes);
+
+// Astrology/Kundli matching routes
+import astrologyRoutes from './astrology.routes.js';
+router.use('/astrology', astrologyRoutes);
+
+// Profile Completion endpoint
+import { authenticate } from '../middleware/auth.js';
+import { getProfileCompletion } from '../controllers/profileCompletion.controller.js';
+router.get('/profile/completion', authenticate, getProfileCompletion);
+
 // Health check endpoint with detailed status
 import prisma from '../config/database.js';
 
