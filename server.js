@@ -9,6 +9,8 @@ import prisma from './src/config/database.js';
 import { initSubscriptionCronJobs } from './src/services/subscriptionCron.service.js';
 // ADDED: Import Redis for caching
 import { initializeRedis, closeRedis } from './src/config/redis.js';
+// ADDED: Import FCM token cleanup cron
+import { initFcmTokenCleanup } from './src/services/fcmTokenCleanup.service.js';
 
 const PORT = config.PORT || 8080;
 
@@ -55,6 +57,9 @@ const startServer = async () => {
 
       // ADDED: Initialize subscription cron jobs (expiry reminders, expired handling)
       initSubscriptionCronJobs();
+
+      // ADDED: Initialize FCM token cleanup cron (daily at 2 AM)
+      initFcmTokenCleanup();
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

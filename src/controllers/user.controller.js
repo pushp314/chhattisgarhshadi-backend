@@ -68,6 +68,17 @@ export const registerFcmToken = asyncHandler(async (req, res) => {
     .json(new ApiResponse(HTTP_STATUS.OK, fcmToken, 'FCM token registered successfully'));
 });
 
+/**
+ * [NEW] Delete an FCM token (on logout)
+ */
+export const deleteFcmToken = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+  await userService.deleteFcmToken(req.user.id, token);
+  res
+    .status(HTTP_STATUS.NO_CONTENT)
+    .send();
+});
+
 export const userController = {
   getUserById,
   getMyProfile,
@@ -75,4 +86,5 @@ export const userController = {
   deleteMe,
   searchUsers,
   registerFcmToken, // ADDED
+  deleteFcmToken, // ADDED
 };

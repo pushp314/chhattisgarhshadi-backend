@@ -24,6 +24,9 @@ router.post(
   userController.registerFcmToken
 );
 
+// DELETE FCM token on logout
+router.delete('/me/fcm-token/:token', userController.deleteFcmToken);
+
 
 router.get('/search', validate(searchUsersSchema), userController.searchUsers);
 

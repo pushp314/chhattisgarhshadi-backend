@@ -350,6 +350,32 @@ export const updateUserRole = async (userId, role) => {
   }
 };
 
+/**
+ * [NEW] Delete an FCM token (on logout)
+ * @param {number} userId - The user's ID
+ * @param {string} token - The FCM token to delete
+ * @returns {Promise<void>}
+ */
+export const deleteFcmToken = async (userId, token) => {
+  try {
+    const result = await prisma.fcmToken.deleteMany({
+      where: {
+        userId,
+        token,
+      },
+    });
+
+    if (result.count > 0) {
+      logger.info(`🗑️  FCM token deleted for user ${userId}`);
+    } else {
+      logger.warn(`⚠️  FCM token not found for user ${userId}`);
+    }
+  } catch (error) {
+    logger.error('Error in deleteFcmToken:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error deleting FCM token');
+  }
+};
+
 export const userService = {
   getFullUserById,
   getPublicUserById,
@@ -357,6 +383,7 @@ export const userService = {
   deleteUser,
   searchUsers,
   registerFcmToken,
+  deleteFcmToken, // ADDED
   // Admin functions
   getAllUsers,
   updateUserRole,

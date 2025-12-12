@@ -985,6 +985,9 @@ model UserSubscription {
   interestsUsed    Int @default(0)
 
   autoRenew Boolean @default(false)
+  
+  // Additional metadata for subscriptions (upgrade tracking, etc.)
+  metadata String? @db.Text // JSON for additional data
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
