@@ -1680,3 +1680,34 @@ model DailyUsage {
   @@map("daily_usage")
 }
 
+// ============================================
+// PROFILE BOOST (Spotlight/Highlighter)
+// ============================================
+
+/// Tracks profile boosts for premium visibility
+model ProfileBoost {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  
+  // Boost details
+  boostType     String   @db.VarChar(50) // SPOTLIGHT_1HR, BOOST_24HR, HIGHLIGHTER
+  multiplier    Float    @default(1) // Visibility multiplier (e.g., 5x for spotlight)
+  isHighlighted Boolean  @default(false) // Golden border effect
+  
+  // Pricing
+  price         Int      // Price in INR
+  transactionId String?  @db.VarChar(100) // Payment reference
+  
+  // Timing
+  activatedAt   DateTime
+  expiresAt     DateTime
+  status        String   @default("ACTIVE") @db.VarChar(20) // ACTIVE, EXPIRED, CANCELLED
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status, expiresAt])
+  @@index([boostType])
+  @@map("profile_boosts")
+}
