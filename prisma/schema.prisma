@@ -536,9 +536,6 @@ model Profile {
   // Physical Attributes
   height             Int? // in cm
   weight             Int? // in kg
-  bloodGroup         String? @db.VarChar(5)
-  complexion         String? @db.VarChar(30)
-  bodyType           String? @db.VarChar(30)
   physicalDisability String? @db.Text
 
   // Lifestyle
@@ -575,7 +572,6 @@ model Profile {
 
   familyType      String? @db.VarChar(30) // NUCLEAR, JOINT
   familyValues    String? @db.VarChar(30) // TRADITIONAL, MODERATE, LIBERAL
-  familyStatus    String? @db.VarChar(30) // MIDDLE_CLASS, UPPER_MIDDLE, RICH
   familyIncome    String? @db.VarChar(50)
   ancestralOrigin String? @db.VarChar(100)
 
@@ -1657,5 +1653,30 @@ model ApiRateLimitLog {
   @@index([ipAddress, createdAt(sort: Desc)])
   @@index([endpoint])
   @@map("api_rate_limit_logs")
+}
+
+// ============================================
+// DAILY USAGE TRACKING (Free User Limits)
+// ============================================
+
+/// Tracks daily usage for free and premium users
+model DailyUsage {
+  id     Int    @id @default(autoincrement())
+  userId Int
+  date   String @db.VarChar(10) // YYYY-MM-DD format
+
+  // Usage counters (reset daily)
+  profileViews    Int @default(0) // Free: 5/day
+  contactRequests Int @default(0) // Free: 5/day
+  interestsSent   Int @default(0) // Free: 5/day
+  messagesCount   Int @default(0) // Free: 10/day
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@map("daily_usage")
 }
 
