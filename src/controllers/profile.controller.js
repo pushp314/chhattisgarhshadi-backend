@@ -1,6 +1,7 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { profileService } from '../services/profile.service.js';
+import matchingAlgorithmService from '../services/matchingAlgorithm.service.js';
 import { HTTP_STATUS, SUCCESS_MESSAGES } from '../utils/constants.js';
 
 /**
@@ -87,6 +88,33 @@ export const deletePhoto = asyncHandler(async (req, res) => {
     .json(new ApiResponse(HTTP_STATUS.OK, null, 'Photo deleted successfully'));
 });
 
+/**
+ * Get Recommendations (Algorithm)
+ */
+export const getRecommendations = asyncHandler(async (req, res) => {
+  const recommendations = await matchingAlgorithmService.getDailyRecommendations(req.user.id, 20);
+
+  // Transform to match profile list structure, extracting profile and adding score
+  const profiles = recommendations.map(rec => ({
+    ...rec.profile,
+    matchScore: rec.score,
+    matchLabel: rec.compatibility,
+    isSuperMatch: rec.isSuperMatch
+  }));
+
+  res.status(HTTP_STATUS.OK).json(
+    new ApiResponse(HTTP_STATUS.OK, {
+      profiles,
+      pagination: {
+        total: profiles.length,
+        pages: 1,
+        current: 1,
+        limit: 20
+      }
+    }, 'Recommendations retrieved successfully')
+  );
+});
+
 
 export const profileController = {
   createProfile,
@@ -95,5 +123,7 @@ export const profileController = {
   updateMyProfile,
   deleteMyProfile,
   searchProfiles,
-  deletePhoto, // Replaced add/remove with a secure delete
+  searchProfiles,
+  deletePhoto,
+  getRecommendations,
 };

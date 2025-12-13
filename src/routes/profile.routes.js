@@ -41,6 +41,13 @@ router.delete(
   profileController.deletePhoto
 );
 
+// Get Recommendations (Smart Algorithm)
+router.get(
+  '/recommendations',
+  requireCompleteProfile,
+  profileController.getRecommendations
+);
+
 // Get public profile by userId - cached for 5 minutes
 router.get(
   '/:userId',
