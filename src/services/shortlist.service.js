@@ -13,7 +13,11 @@ const userPublicSelect = {
   profilePicture: true,
   role: true,
   preferredLanguage: true,
-  profile: true, // Include the full related profile
+  profile: {
+    include: {
+      media: true, // Include media for profile photos
+    },
+  },
 };
 
 /**
