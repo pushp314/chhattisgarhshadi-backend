@@ -40,7 +40,7 @@ export const getMyShortlist = asyncHandler(async (req, res) => {
  * Remove a user from the current user's shortlist
  */
 export const removeFromShortlist = asyncHandler(async (req, res) => {
-  const { shortlistedUserId } = req.params;
+  const shortlistedUserId = parseInt(req.params.shortlistedUserId, 10);
   await shortlistService.removeFromShortlist(req.user.id, shortlistedUserId);
   res
     .status(HTTP_STATUS.OK)

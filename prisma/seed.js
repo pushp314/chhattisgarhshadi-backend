@@ -116,10 +116,29 @@ async function seed() {
                             motherTongue: 'HINDI',
                             familyType: getRandomItem(familyTypes),
                             speaksChhattisgarhi: Math.random() > 0.3,
+                            isPublished: true, // Required for search API
+                            publishedAt: new Date(), // Set publish timestamp
+                            profileCompleteness: 60, // Minimum required for search visibility
                         },
                     },
                 },
                 include: { profile: true },
+            });
+
+            // Create profile photo with generated avatar
+            const avatarUrl = `https://ui-avatars.com/api/?name=${name.first}+${name.last}&size=500&background=4A90E2&color=fff&bold=true&rounded=true`;
+            await prisma.media.create({
+                data: {
+                    userId: user.id,
+                    profileId: user.profile.id,
+                    type: 'PROFILE_PHOTO',
+                    url: avatarUrl,
+                    thumbnailUrl: avatarUrl,
+                    fileName: `${name.first}_${name.last}_avatar.png`,
+                    fileSize: 0,
+                    mimeType: 'image/png',
+                    isDefault: true,
+                },
             });
 
             console.log(`✅ Created male profile: ${name.first} ${name.last} (${age} years, ${city})`);
@@ -163,10 +182,29 @@ async function seed() {
                             motherTongue: 'HINDI',
                             familyType: getRandomItem(familyTypes),
                             speaksChhattisgarhi: Math.random() > 0.3,
+                            isPublished: true, // Required for search API
+                            publishedAt: new Date(), // Set publish timestamp
+                            profileCompleteness: 60, // Minimum required for search visibility
                         },
                     },
                 },
                 include: { profile: true },
+            });
+
+            // Create profile photo with generated avatar
+            const avatarUrl = `https://ui-avatars.com/api/?name=${name.first}+${name.last}&size=500&background=E91E63&color=fff&bold=true&rounded=true`;
+            await prisma.media.create({
+                data: {
+                    userId: user.id,
+                    profileId: user.profile.id,
+                    type: 'PROFILE_PHOTO',
+                    url: avatarUrl,
+                    thumbnailUrl: avatarUrl,
+                    fileName: `${name.first}_${name.last}_avatar.png`,
+                    fileSize: 0,
+                    mimeType: 'image/png',
+                    isDefault: true,
+                },
             });
 
             console.log(`✅ Created female profile: ${name.first} ${name.last} (${age} years, ${city})`);
