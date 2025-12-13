@@ -19,6 +19,13 @@ const userPublicSelect = {
     select: {
       firstName: true,
       lastName: true,
+      media: {
+        select: {
+          url: true,
+          type: true,
+        },
+        take: 1, // Only get the first image (profile pic)
+      },
     },
   },
 };
