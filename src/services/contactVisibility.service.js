@@ -73,7 +73,7 @@ export const canViewContactInfo = async (viewerId, profileOwnerId) => {
 };
 
 /**
- * Get contact info with visibility check
+ * Get contact info with visibility check and plan-based limits
  * @param {number} viewerId - User requesting contact info
  * @param {number} profileOwnerId - User whose contact is requested
  * @returns {Promise<object|null>}
@@ -90,7 +90,79 @@ export const getContactInfoIfAllowed = async (viewerId, profileOwnerId) => {
         };
     }
 
-    // Fetch contact info
+    // Check plan-based contact view limits for premium users
+    const activeSubscription = await prisma.userSubscription.findFirst({
+        where: {
+            userId: viewerId,
+            status: 'ACTIVE',
+            endDate: { gt: new Date() },
+        },
+        include: {
+            plan: true,
+        },
+        orderBy: { endDate: 'desc' },
+    });
+
+    // If user has a subscription with contact view limits
+    if (activeSubscription && activeSubscription.plan.maxContactViews > 0) {
+        const maxViews = activeSubscription.plan.maxContactViews;
+        const usedViews = activeSubscription.contactViewsUsed;
+        const remainingViews = maxViews - usedViews;
+
+        // Check if user has exhausted their limit
+        if (remainingViews <= 0) {
+            return {
+                allowed: false,
+                reason: 'contact_limit_reached',
+                message: `You have used all ${maxViews} contact views in your plan. Please upgrade to continue.`,
+                contactInfo: null,
+                remainingViews: 0,
+                maxViews,
+            };
+        }
+
+        // Increment usage counter
+        await prisma.userSubscription.update({
+            where: { id: activeSubscription.id },
+            data: { contactViewsUsed: { increment: 1 } },
+        });
+
+        // Also increment profile's contactViewCount
+        await prisma.profile.update({
+            where: { userId: profileOwnerId },
+            data: { contactViewCount: { increment: 1 } },
+        });
+
+        // Fetch contact info
+        const user = await prisma.user.findUnique({
+            where: { id: profileOwnerId },
+            select: {
+                phone: true,
+                email: true,
+                profile: {
+                    select: {
+                        alternatePhone: true,
+                        whatsappNumber: true,
+                    },
+                },
+            },
+        });
+
+        return {
+            allowed: true,
+            reason,
+            contactInfo: {
+                phone: user?.phone,
+                email: user?.email,
+                alternatePhone: user?.profile?.alternatePhone,
+                whatsappNumber: user?.profile?.whatsappNumber,
+            },
+            remainingViews: remainingViews - 1,
+            maxViews,
+        };
+    }
+
+    // Unlimited contact views (admin, premium with no limits, or free feature)
     const user = await prisma.user.findUnique({
         where: { id: profileOwnerId },
         select: {
