@@ -7,7 +7,7 @@ import prisma from '../config/database.js';
 import { logger } from '../config/logger.js';
 
 // Boost pricing and duration
-const BOOST_PACKAGES = {
+export const BOOST_PACKAGES = {
     SPOTLIGHT_1HR: {
         id: 'spotlight_1hr',
         name: '1 Hour Spotlight',
