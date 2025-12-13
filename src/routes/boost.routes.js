@@ -10,6 +10,8 @@ import {
     getActive,
     activate,
     getFeaturedProfiles,
+    createBoostOrder,
+    verifyBoostPayment,
 } from '../controllers/boost.controller.js';
 
 const router = express.Router();
@@ -25,5 +27,11 @@ router.get('/active', authenticate, getActive);
 
 // Activate a boost (authenticated)
 router.post('/activate', authenticate, activate);
+
+// Create Razorpay order for boost (authenticated)
+router.post('/order', authenticate, createBoostOrder);
+
+// Verify payment and activate boost (authenticated)
+router.post('/verify', authenticate, verifyBoostPayment);
 
 export default router;
