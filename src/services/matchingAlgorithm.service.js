@@ -346,7 +346,6 @@ export const getDailyRecommendations = async (userId, limit = 10) => {
             where: { userId },
             include: {
                 partnerPreference: true,
-                user: { select: { gender: true } },
             },
         });
 
