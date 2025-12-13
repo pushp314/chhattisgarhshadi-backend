@@ -20,6 +20,8 @@ import verificationRoutes from './verification.routes.js';
 import analyticsRoutes from './analytics.routes.js';
 // ADDED: Import activity log routes
 import activityLogRoutes from './activityLog.routes.js';
+// ADDED: Import audit log routes
+import auditLogRoutes from './auditLog.routes.js';
 
 const router = Router();
 
@@ -109,5 +111,9 @@ router.patch('/plans/:planId/discount', adminController.updatePlanDiscount);
 // --- ADDED: Activity Logs ---
 // All routes will be prefixed with /admin/activity-logs
 router.use('/activity-logs', activityLogRoutes);
+
+// --- ADDED: Audit Logs ---
+// All routes will be prefixed with /admin/audit-logs
+router.use('/audit-logs', auditLogRoutes);
 
 export default router;
