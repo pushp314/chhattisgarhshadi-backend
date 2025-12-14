@@ -212,7 +212,13 @@ export const searchProfiles = async (query, currentUserId = null) => {
       minHeight,
       maxHeight,
       nativeDistrict,
-      speaksChhattisgarhi
+      speaksChhattisgarhi,
+      // NEW FILTERS
+      education,
+      income,
+      annualIncome,
+      withPhoto,
+      isVerified,
     } = query;
 
     const where = {
@@ -244,45 +250,108 @@ export const searchProfiles = async (query, currentUserId = null) => {
     }
 
     if (gender) where.gender = gender;
-    if (maritalStatus) where.maritalStatus = maritalStatus;
-    if (nativeDistrict) where.nativeDistrict = { equals: nativeDistrict, mode: 'insensitive' };
-    if (speaksChhattisgarhi !== undefined) where.speaksChhattisgarhi = speaksChhattisgarhi;
-    if (religions && religions.length > 0) where.religion = { in: religions };
-    if (castes && castes.length > 0) where.caste = { in: castes, mode: 'insensitive' };
-    if (minHeight) where.height = { ...where.height, gte: minHeight };
-    if (maxHeight) where.height = { ...where.height, lte: maxHeight };
 
+    // Marital Status - Support comma-separated string or array
+    if (maritalStatus) {
+      const statuses = typeof maritalStatus === 'string'
+        ? maritalStatus.split(',').map(s => s.trim().toUpperCase().replace(/ /g, '_'))
+        : maritalStatus;
+      if (statuses.length === 1) {
+        where.maritalStatus = statuses[0];
+      } else if (statuses.length > 1) {
+        where.maritalStatus = { in: statuses };
+      }
+    }
+
+    if (nativeDistrict) where.nativeDistrict = { equals: nativeDistrict, mode: 'insensitive' };
+    if (speaksChhattisgarhi !== undefined) where.speaksChhattisgarhi = speaksChhattisgarhi === 'true' || speaksChhattisgarhi === true;
+
+    // Religion - Support comma-separated string or array
+    if (religions) {
+      const religionList = typeof religions === 'string' ? religions.split(',').map(r => r.trim().toUpperCase()) : religions;
+      if (religionList.length > 0) {
+        where.religion = { in: religionList };
+      }
+    }
+
+    // Caste - Support comma-separated string or array
+    if (castes) {
+      const casteList = typeof castes === 'string' ? castes.split(',').map(c => c.trim()) : castes;
+      if (casteList.length > 0) {
+        where.caste = { in: casteList, mode: 'insensitive' };
+      }
+    }
+
+    // Height filters (in cm)
+    if (minHeight) where.height = { ...where.height, gte: parseFloat(minHeight) };
+    if (maxHeight) where.height = { ...where.height, lte: parseFloat(maxHeight) };
+
+    // Age filter via DOB calculation
     if (minAge || maxAge) {
       const today = new Date();
       where.dateOfBirth = {};
       if (minAge) {
-        const maxDOB = new Date(today.getFullYear() - minAge, today.getMonth(), today.getDate());
+        const maxDOB = new Date(today.getFullYear() - parseInt(minAge), today.getMonth(), today.getDate());
         where.dateOfBirth.lte = maxDOB;
       }
       if (maxAge) {
-        const minDOB = new Date(today.getFullYear() - maxAge - 1, today.getMonth(), today.getDate());
+        const minDOB = new Date(today.getFullYear() - parseInt(maxAge) - 1, today.getMonth(), today.getDate());
         where.dateOfBirth.gte = minDOB;
       }
     }
 
+    // NEW: Education filter
+    if (education && education !== 'Any') {
+      where.education = { contains: education, mode: 'insensitive' };
+    }
+
+    // NEW: Income/AnnualIncome filter
+    const incomeValue = income || annualIncome;
+    if (incomeValue && incomeValue !== 'Any') {
+      // Parse income ranges like "3-6 LPA", "10-15 LPA", "25+ LPA"
+      if (incomeValue.includes('+')) {
+        // "25+ LPA" means >= 25
+        where.annualIncome = { contains: incomeValue.replace('+', ''), mode: 'insensitive' };
+      } else {
+        where.annualIncome = { contains: incomeValue, mode: 'insensitive' };
+      }
+    }
+
+    // NEW: Is Verified filter
+    if (isVerified !== undefined) {
+      where.isVerified = isVerified === 'true' || isVerified === true;
+    }
+
+    // Base query options
+    const queryOptions = {
+      where,
+      skip,
+      take: limit,
+      include: {
+        user: { select: { id: true, role: true } },
+        media: {
+          where: { type: 'PROFILE_PHOTO' },
+          include: { privacySettings: true }
+        },
+      },
+      orderBy: {
+        user: {
+          role: 'desc',
+        },
+      },
+    };
+
+    // NEW: With Photo filter - only include profiles with at least one photo
+    if (withPhoto === 'true' || withPhoto === true) {
+      queryOptions.where.media = {
+        some: {
+          type: { in: ['PROFILE_PHOTO', 'GALLERY_PHOTO'] }
+        }
+      };
+    }
+
     const [profiles, total] = await Promise.all([
-      prisma.profile.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          user: { select: { id: true, role: true } },
-          media: {
-            where: { type: 'PROFILE_PHOTO', isDefault: true },
-            include: { privacySettings: true }
-          },
-        },
-        orderBy: {
-          user: {
-            role: 'desc',
-          },
-        },
-      }),
+      prisma.profile.findMany(queryOptions),
       prisma.profile.count({ where }),
     ]);
 
