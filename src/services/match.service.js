@@ -10,13 +10,24 @@ import { notificationService } from './notification.service.js';
 
 // Reusable Prisma select for public-facing user data
 // Prevents leaking sensitive fields like email, phone, googleId, etc.
+// IMPORTANT: Includes profile with media for images
 const userPublicSelect = {
   id: true,
   profilePicture: true,
   role: true,
   preferredLanguage: true,
   createdAt: true,
-  profile: true, // Include the full related profile
+  profile: {
+    include: {
+      media: {
+        where: {
+          type: { in: ['PROFILE_PHOTO', 'GALLERY_PHOTO'] }
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 3, // Limit to first 3 photos for performance
+      }
+    }
+  },
 };
 
 /**
