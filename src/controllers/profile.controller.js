@@ -3,6 +3,7 @@ import { ApiResponse } from '../utils/ApiResponse.js';
 import { profileService } from '../services/profile.service.js';
 import matchingAlgorithmService from '../services/matchingAlgorithm.service.js';
 import { HTTP_STATUS, SUCCESS_MESSAGES } from '../utils/constants.js';
+import { cacheHelper } from '../utils/cache.helper.js';
 
 /**
  * Create profile
@@ -36,7 +37,11 @@ export const getMyProfile = asyncHandler(async (req, res) => {
 export const getProfileByUserId = asyncHandler(async (req, res) => {
   // Convert userId to integer (route params are always strings)
   const userId = parseInt(req.params.userId, 10);
-  const profile = await profileService.getProfileByUserId(userId, req.user?.id);
+  const profile = await cacheHelper.getOrFetch(
+    `profile:userId:${userId}`,
+    async () => await profileService.getProfileByUserId(userId, req.user?.id),
+    3600 // 1 hour
+  );
   res
     .status(HTTP_STATUS.OK)
     .json(new ApiResponse(HTTP_STATUS.OK, profile, 'Profile retrieved successfully'));
@@ -48,6 +53,10 @@ export const getProfileByUserId = asyncHandler(async (req, res) => {
 export const updateMyProfile = asyncHandler(async (req, res) => {
   // req.body is now pre-validated and safe
   const profile = await profileService.updateProfile(req.user.id, req.body);
+
+  // Invalidate cache
+  await cacheHelper.del(`profile:userId:${req.user.id}`);
+
   res
     .status(HTTP_STATUS.OK)
     .json(
@@ -92,15 +101,20 @@ export const deletePhoto = asyncHandler(async (req, res) => {
  * Get Recommendations (Algorithm)
  */
 export const getRecommendations = asyncHandler(async (req, res) => {
-  const recommendations = await matchingAlgorithmService.getDailyRecommendations(req.user.id, 20);
+  const profiles = await cacheHelper.getOrFetch(
+    `recommendations:${req.user.id}`,
+    async () => {
+      const recommendations = await matchingAlgorithmService.getDailyRecommendations(req.user.id, 20);
 
-  // Transform to match profile list structure, extracting profile and adding score
-  const profiles = recommendations.map(rec => ({
-    ...rec.profile,
-    matchScore: rec.score,
-    matchLabel: rec.compatibility,
-    isSuperMatch: rec.isSuperMatch
-  }));
+      return recommendations.map(rec => ({
+        ...rec.profile,
+        matchScore: rec.score,
+        matchLabel: rec.compatibility,
+        isSuperMatch: rec.isSuperMatch
+      }));
+    },
+    21600 // 6 hours
+  );
 
   res.status(HTTP_STATUS.OK).json(
     new ApiResponse(HTTP_STATUS.OK, {

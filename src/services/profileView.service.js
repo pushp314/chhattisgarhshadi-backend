@@ -99,15 +99,20 @@ export const logProfileView = async (viewerId, profileId, isAnonymous = false) =
 
     // --- Send Notification (if not anonymous) ---
     if (!isAnonymous) {
-      const viewerName = viewer?.profile?.firstName || 'Someone';
+      try {
+        const viewerName = viewer?.profile?.firstName || 'Someone';
 
-      await notificationService.createNotification({
-        userId: profileId,
-        type: NOTIFICATION_TYPES.PROFILE_VIEWED,
-        title: 'Your profile has a new view!',
-        message: `${viewerName} viewed your profile.`,
-        data: { viewerId },
-      });
+        await notificationService.createNotification({
+          userId: profileId,
+          type: NOTIFICATION_TYPES.PROFILE_VIEWED,
+          title: 'Your profile has a new view!',
+          message: `${viewerName} viewed your profile.`,
+          data: { viewerId },
+        });
+      } catch (notifError) {
+        logger.warn('Failed to send profile view notification:', notifError);
+        // Don't fail the request just because notification failed
+      }
     }
 
     logger.info(`Profile view logged: ${viewerId} -> ${profileId}`);
@@ -127,7 +132,8 @@ export const logProfileView = async (viewerId, profileId, isAnonymous = false) =
   } catch (error) {
     logger.error('Error in logProfileView:', error);
     if (error instanceof ApiError) throw error;
-    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error logging profile view');
+    // DEV: Exposing error message for debugging
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, `Error logging profile view: ${error.message}`);
   }
 };
 

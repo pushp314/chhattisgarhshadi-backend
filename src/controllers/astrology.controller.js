@@ -9,6 +9,7 @@ import {
     getRashis,
 } from '../services/astrology.service.js';
 import { logger } from '../config/logger.js';
+import { cacheHelper } from '../utils/cache.helper.js';
 
 /**
  * GET /api/v1/astrology/nakshatras
@@ -68,7 +69,14 @@ export const getMatch = async (req, res) => {
             });
         }
 
-        const compatibility = await getCompatibility(userId, targetUserId);
+        const sortedIds = [userId, targetUserId].sort((a, b) => a - b);
+        const cacheKey = `kundali:${sortedIds[0]}:${sortedIds[1]}`;
+
+        const compatibility = await cacheHelper.getOrFetch(
+            cacheKey,
+            async () => await getCompatibility(userId, targetUserId),
+            86400 // 24 hours
+        );
 
         return res.status(200).json({
             success: true,
