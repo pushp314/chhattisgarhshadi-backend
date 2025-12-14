@@ -48,9 +48,13 @@ export const calculateGunaMatch = (profile1, profile2) => {
             score: 0,
             maxScore: TOTAL_GUNAS,
             percentage: 0,
-            breakdown: {},
+            breakdown: [],
             recommendation: 'Horoscope details not available',
             canMatch: null,
+            manglikStatus: {
+                compatible: false,
+                message: 'Horoscope details incomplete'
+            }
         };
     }
 
