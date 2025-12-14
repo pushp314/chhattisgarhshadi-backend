@@ -58,7 +58,19 @@ export const BOOST_PACKAGES = {
  * @param {string} transactionId - Payment transaction ID
  */
 export const activateBoost = async (userId, boostType, transactionId) => {
-    const boostPackage = BOOST_PACKAGES[boostType];
+    // Lookup by key first, then by id for flexibility
+    let boostPackage = BOOST_PACKAGES[boostType];
+    let resolvedBoostType = boostType;
+    if (!boostPackage) {
+        // Try finding by id (lowercase)
+        const entry = Object.entries(BOOST_PACKAGES).find(([key, pkg]) =>
+            pkg.id === boostType || pkg.id === boostType.toLowerCase()
+        );
+        if (entry) {
+            resolvedBoostType = entry[0]; // Use the key for storage
+            boostPackage = entry[1];
+        }
+    }
 
     if (!boostPackage) {
         throw new Error('Invalid boost package');
@@ -71,7 +83,7 @@ export const activateBoost = async (userId, boostType, transactionId) => {
     const boost = await prisma.profileBoost.create({
         data: {
             userId,
-            boostType,
+            boostType: resolvedBoostType, // Use resolved key for consistency
             multiplier: boostPackage.multiplier,
             isHighlighted: boostPackage.isHighlighted || false,
             price: boostPackage.price,
@@ -82,7 +94,7 @@ export const activateBoost = async (userId, boostType, transactionId) => {
         },
     });
 
-    logger.info(`Boost activated: ${boostType} for user ${userId} until ${expiresAt}`);
+    logger.info(`Boost activated: ${resolvedBoostType} for user ${userId} until ${expiresAt}`);
 
     return {
         boost,

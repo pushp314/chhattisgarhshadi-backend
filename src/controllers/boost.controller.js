@@ -138,7 +138,12 @@ export const createBoostOrder = async (req, res) => {
             });
         }
 
-        const boostPackage = BOOST_PACKAGES[boostType];
+        // Lookup by key first, then by id for flexibility
+        let boostPackage = BOOST_PACKAGES[boostType];
+        if (!boostPackage) {
+            // Try finding by id (lowercase)
+            boostPackage = Object.values(BOOST_PACKAGES).find(p => p.id === boostType || p.id === boostType.toLowerCase());
+        }
         if (!boostPackage) {
             return res.status(400).json({
                 success: false,
