@@ -194,9 +194,9 @@ export const deleteProfile = async (userId) => {
 };
 
 /**
- * Search profiles with filters
- * @param {Object} query - Query parameters (validated)
- * @param {number} [currentUserId] - The ID of the user performing the search
+ * Search/filter profiles with optional type-based algorithms
+ * @param {Object} query - Search parameters
+ * @param {number} currentUserId - ID of requesting user
  * @returns {Promise<Object>}
  */
 export const searchProfiles = async (query, currentUserId = null) => {
@@ -219,6 +219,8 @@ export const searchProfiles = async (query, currentUserId = null) => {
       annualIncome,
       withPhoto,
       isVerified,
+      // SECTION TYPE - featured, new, recommended
+      type,
     } = query;
 
     const where = {
@@ -322,6 +324,38 @@ export const searchProfiles = async (query, currentUserId = null) => {
       where.isVerified = isVerified === 'true' || isVerified === true;
     }
 
+    // === TYPE-BASED ALGORITHMS ===
+    let orderBy = [{ user: { role: 'desc' } }]; // Default: Premium first
+
+    if (type === 'featured') {
+      // FEATURED: Premium users with high profile completeness and photos
+      // Algorithm: Premium first, then by completeness, must have photos
+      where.profileCompleteness = { gte: 60 };
+      where.media = { some: { type: { in: ['PROFILE_PHOTO', 'GALLERY_PHOTO'] } } };
+      orderBy = [
+        { user: { role: 'desc' } },           // Premium first
+        { profileCompleteness: 'desc' },       // Then by completeness
+        { viewCount: 'desc' },                 // Then by popularity
+      ];
+    } else if (type === 'new' || type === 'justJoined') {
+      // NEW/JUST JOINED: Profiles created in last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      where.createdAt = { gte: sevenDaysAgo };
+      orderBy = [
+        { createdAt: 'desc' },                 // Newest first
+        { profileCompleteness: 'desc' },       // Then by completeness
+      ];
+    } else if (type === 'recommended') {
+      // RECOMMENDED: Matching partner preferences (if available)
+      // For now: profiles with high completeness ordered by interaction potential
+      orderBy = [
+        { profileCompleteness: 'desc' },       // Most complete profiles
+        { viewCount: 'desc' },                 // Popular profiles
+        { user: { role: 'desc' } },            // Premium users
+      ];
+    }
+
     // Base query options
     const queryOptions = {
       where,
@@ -334,11 +368,7 @@ export const searchProfiles = async (query, currentUserId = null) => {
           include: { privacySettings: true }
         },
       },
-      orderBy: {
-        user: {
-          role: 'desc',
-        },
-      },
+      orderBy,
     };
 
     // NEW: With Photo filter - only include profiles with at least one photo
