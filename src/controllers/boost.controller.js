@@ -140,9 +140,10 @@ export const createBoostOrder = async (req, res) => {
 
         // Lookup by key first, then by id for flexibility
         let boostPackage = BOOST_PACKAGES[boostType];
-        if (!boostPackage) {
+        if (!boostPackage && boostType) {
             // Try finding by id (lowercase)
-            boostPackage = Object.values(BOOST_PACKAGES).find(p => p.id === boostType || p.id === boostType.toLowerCase());
+            const lowerType = boostType.toLowerCase();
+            boostPackage = Object.values(BOOST_PACKAGES).find(p => p.id === boostType || p.id === lowerType);
         }
         if (!boostPackage) {
             return res.status(400).json({
@@ -172,7 +173,7 @@ export const createBoostOrder = async (req, res) => {
                 orderId: order.id,
                 amount: order.amount,
                 currency: order.currency,
-                razorpayKey: config.razorpay.keyId,
+                razorpayKey: config.RAZORPAY_KEY_ID,
                 boostPackage,
             },
         });
@@ -207,7 +208,7 @@ export const verifyBoostPayment = async (req, res) => {
         const crypto = await import('crypto');
 
         const generatedSignature = crypto
-            .createHmac('sha256', config.razorpay.keySecret)
+            .createHmac('sha256', config.RAZORPAY_KEY_SECRET)
             .update(`${razorpay_order_id}|${razorpay_payment_id}`)
             .digest('hex');
 

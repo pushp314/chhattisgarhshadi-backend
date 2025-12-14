@@ -61,10 +61,11 @@ export const activateBoost = async (userId, boostType, transactionId) => {
     // Lookup by key first, then by id for flexibility
     let boostPackage = BOOST_PACKAGES[boostType];
     let resolvedBoostType = boostType;
-    if (!boostPackage) {
+    if (!boostPackage && boostType) {
         // Try finding by id (lowercase)
+        const lowerType = boostType.toLowerCase();
         const entry = Object.entries(BOOST_PACKAGES).find(([key, pkg]) =>
-            pkg.id === boostType || pkg.id === boostType.toLowerCase()
+            pkg.id === boostType || pkg.id === lowerType
         );
         if (entry) {
             resolvedBoostType = entry[0]; // Use the key for storage
