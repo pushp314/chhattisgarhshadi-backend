@@ -3,9 +3,10 @@
  * Handles PIN code to location lookup API endpoints
  */
 
-const express = require('express');
+import express from 'express';
+import locationService from '../services/location.service.js';
+
 const router = express.Router();
-const locationService = require('../services/location.service');
 
 /**
  * GET /api/v1/location
@@ -107,4 +108,5 @@ router.get('/validate/:pincode', (req, res) => {
     });
 });
 
-module.exports = router;
+export default router;
+

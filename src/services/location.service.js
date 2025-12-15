@@ -10,10 +10,8 @@
  * 5. Return location data
  */
 
-const { PrismaClient } = require('@prisma/client');
-const axios = require('axios');
-
-const prisma = new PrismaClient();
+import prisma from '../config/database.js';
+import axios from 'axios';
 
 // India Post API base URL
 const INDIA_POST_API = 'https://api.postalpincode.in/pincode';
@@ -26,7 +24,7 @@ const API_TIMEOUT = 5000; // 5 seconds
  * @param {string} pincode 
  * @returns {boolean}
  */
-const isValidPincode = (pincode) => {
+export const isValidPincode = (pincode) => {
     if (!pincode || typeof pincode !== 'string') return false;
     // Must be exactly 6 digits
     return /^[1-9][0-9]{5}$/.test(pincode);
@@ -91,7 +89,7 @@ const fetchFromIndiaPostAPI = async (pincode) => {
  * @param {string} pincode - 6-digit Indian PIN code
  * @returns {Promise<{success: boolean, data?: object, error?: string}>}
  */
-const getLocationByPincode = async (pincode) => {
+export const getLocationByPincode = async (pincode) => {
     const startTime = Date.now();
 
     // Validate PIN code format
@@ -182,7 +180,7 @@ const getLocationByPincode = async (pincode) => {
  * @param {string[]} pincodes 
  * @returns {Promise<Map<string, object>>}
  */
-const bulkLookup = async (pincodes) => {
+export const bulkLookup = async (pincodes) => {
     const results = new Map();
 
     // Process in batches to avoid overwhelming external API
@@ -206,8 +204,9 @@ const bulkLookup = async (pincodes) => {
     return results;
 };
 
-module.exports = {
+export default {
     getLocationByPincode,
     bulkLookup,
     isValidPincode
 };
+

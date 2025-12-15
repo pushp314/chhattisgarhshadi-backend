@@ -118,16 +118,37 @@ router.use('/recommendations', recommendationsRoutes);
 import locationRoutes from './location.routes.js';
 router.use('/location', locationRoutes);
 
+// Web Payment routes (for browser-based checkout)
+import webRoutes from './web.routes.js';
+router.use('/web', webRoutes);
 
 // Health check endpoint with detailed status
 import prisma from '../config/database.js';
+import { isRedisConnected } from '../config/redis.js';
 
-router.get('/health', async (req, res) => {
+// FAST health check - no database query (for load balancers, k8s probes)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'healthy',
+    message: '✅ API is running',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+  });
+});
+
+// DETAILED health check - includes DB latency (for monitoring dashboards)
+router.get('/health/detailed', async (req, res) => {
   try {
-    // Test database connection
+    const startTime = Date.now();
+
+    // Test database connection (this is the slow part - 1-2s for cold Neon connection)
     const dbStart = Date.now();
     await prisma.$queryRaw`SELECT 1`;
     const dbLatency = Date.now() - dbStart;
+
+    // Check Redis
+    const redisStatus = isRedisConnected() ? '✅ Connected' : '⚠️ Not connected';
 
     res.json({
       success: true,
@@ -137,11 +158,17 @@ router.get('/health', async (req, res) => {
       uptime: Math.floor(process.uptime()),
       environment: process.env.NODE_ENV || 'development',
       version: '1.0.0',
+      totalLatency: `${Date.now() - startTime}ms`,
       services: {
         database: {
           status: '✅ Connected',
           latency: `${dbLatency}ms`,
           type: 'PostgreSQL (Neon)',
+          note: dbLatency > 1000 ? '⚠️ Cold connection - normal for serverless DB' : null,
+        },
+        redis: {
+          status: redisStatus,
+          service: 'Redis Cache',
         },
         socket: {
           status: '✅ Running',
@@ -177,5 +204,6 @@ router.get('/health', async (req, res) => {
     });
   }
 });
+
 
 export default router;
