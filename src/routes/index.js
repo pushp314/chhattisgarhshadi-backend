@@ -114,6 +114,11 @@ router.get('/profile/completion', authenticate, getProfileCompletion);
 import recommendationsRoutes from './recommendations.routes.js';
 router.use('/recommendations', recommendationsRoutes);
 
+// Location (PIN Code) routes
+import locationRoutes from './location.routes.js';
+router.use('/location', locationRoutes);
+
+
 // Health check endpoint with detailed status
 import prisma from '../config/database.js';
 

@@ -1716,3 +1716,20 @@ model ProfileBoost {
   @@index([boostType])
   @@map("profile_boosts")
 }
+
+// ============================================
+// PIN CODE LOCATION CACHE
+// ============================================
+
+/// Caches India Post PIN code lookups to avoid repeated external API calls
+model Pincode {
+  id        Int      @id @default(autoincrement())
+  pincode   String   @unique @db.VarChar(6)
+  city      String   @db.VarChar(100)
+  district  String   @db.VarChar(100)
+  state     String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([pincode])
+  @@map("pincodes")
+}
