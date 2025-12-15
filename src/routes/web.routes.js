@@ -10,6 +10,7 @@ import { config } from '../config/config.js';
 import prisma from '../config/database.js';
 import jwt from 'jsonwebtoken';
 import path from 'path';
+import { authenticate as authenticateWebUser } from '../middleware/auth.js';
 
 const router = express.Router();
 
@@ -74,6 +75,83 @@ router.post('/payment/create-link', async (req, res) => {
         res.status(error.statusCode || 500).json({
             success: false,
             error: error.message || 'Failed to create payment link'
+        });
+    }
+});
+
+/**
+ * Initiate payment from web session (requires auth)
+ * POST /api/v1/web/payment/initiate-session
+ */
+router.post('/payment/initiate-session', authenticateWebUser, async (req, res) => {
+    try {
+        const { planId } = req.body;
+        const userId = req.user.id; // From authenticateWebUser middleware
+
+        if (!planId) {
+            return res.status(400).json({
+                success: false,
+                error: 'planId is required'
+            });
+        }
+
+        // Create the Razorpay order
+        const order = await paymentService.createOrder(userId, planId);
+
+        // Get plan details
+        const plan = await prisma.subscriptionPlan.findUnique({
+            where: { id: planId }
+        });
+
+        res.json({
+            success: true,
+            data: {
+                orderId: order.orderId,
+                amount: order.amount,
+                currency: order.currency,
+                razorpayKey: config.RAZORPAY_KEY_ID,
+                user: {
+                    name: req.user.profile ? `${req.user.profile.firstName} ${req.user.profile.lastName}` : 'User',
+                    email: req.user.email || '',
+                    phone: req.user.phone || ''
+                },
+                plan: {
+                    name: plan?.name,
+                    duration: plan?.duration,
+                    features: plan?.features || []
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('[Web Session Payment] Error initiating payment:', error);
+        res.status(error.statusCode || 500).json({
+            success: false,
+            error: error.message || 'Failed to initiate payment'
+        });
+    }
+});
+
+/**
+ * Get active subscription plans (Public)
+ * GET /api/v1/web/payment/plans
+ */
+router.get('/payment/plans', async (req, res) => {
+    try {
+        const plans = await prisma.subscriptionPlan.findMany({
+            where: { isActive: true },
+            orderBy: { price: 'asc' }
+        });
+
+        res.json({
+            success: true,
+            data: plans
+        });
+    } catch (error) {
+        console.error('[Web Plans] Error fetching plans:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch active plans'
         });
     }
 });
