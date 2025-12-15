@@ -3,6 +3,8 @@ import { logger } from '../config/logger.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS, MEDIA_TYPES } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
+import { notificationService } from './notification.service.js';
+import { NOTIFICATION_TYPES } from '../utils/constants.js';
 
 /**
  * [Admin] Get pending verification requests (documents awaiting review)
@@ -175,7 +177,22 @@ export const approveVerification = async (mediaId, adminId) => {
             return updatedDocument;
         });
 
-        // TODO: Send notification to user about approval
+        // Send notification to user about approval
+        try {
+            await notificationService.createNotification({
+                userId: document.user.id,
+                type: NOTIFICATION_TYPES.PROFILE_VERIFIED || 'PROFILE_VERIFIED', // TODO: Add to constants
+                title: 'Document Verified! ✅',
+                message: 'Your document has been verified successfully.',
+                data: {
+                    type: 'PROFILE_VERIFIED',
+                    mediaId: String(mediaId),
+                },
+            });
+        } catch (error) {
+            logger.error('Failed to send verification approval notification:', error);
+        }
+
         logger.info(`Document ${mediaId} approved by admin ${adminId}`);
         return result;
     } catch (error) {
@@ -219,7 +236,23 @@ export const rejectVerification = async (mediaId, adminId, reason) => {
             },
         });
 
-        // TODO: Send notification to user about rejection with reason
+        // Send notification to user about rejection
+        try {
+            await notificationService.createNotification({
+                userId: document.userId, // Note: document.userId is stored on the media object
+                type: NOTIFICATION_TYPES.VERIFICATION_REJECTED || 'VERIFICATION_REJECTED',
+                title: 'Document Rejected ❌',
+                message: `Your document was rejected: ${reason}`,
+                data: {
+                    type: 'VERIFICATION_REJECTED',
+                    mediaId: String(mediaId),
+                    reason: reason,
+                },
+            });
+        } catch (error) {
+            logger.error('Failed to send verification rejection notification:', error);
+        }
+
         logger.info(`Document ${mediaId} rejected by admin ${adminId}: ${reason}`);
         return updatedDocument;
     } catch (error) {
@@ -259,7 +292,23 @@ export const requestResubmission = async (mediaId, adminId, reason) => {
             },
         });
 
-        // TODO: Send notification to user requesting new document
+        // Send notification requesting resubmission
+        try {
+            await notificationService.createNotification({
+                userId: document.userId,
+                type: 'VERIFICATION_RESUBMIT', // TODO: Add to constants
+                title: 'Resubmission Required ⚠️',
+                message: `Please resubmit your document: ${reason}`,
+                data: {
+                    type: 'VERIFICATION_RESUBMIT',
+                    mediaId: String(mediaId),
+                    reason: reason,
+                },
+            });
+        } catch (error) {
+            logger.error('Failed to send resubmission notification:', error);
+        }
+
         logger.info(
             `Document ${mediaId} resubmission requested by admin ${adminId}: ${reason}`
         );
