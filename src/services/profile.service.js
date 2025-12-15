@@ -30,10 +30,14 @@ export const createProfile = async (userId, data) => {
       throw new ApiError(HTTP_STATUS.CONFLICT, 'Profile already exists');
     }
 
+    // Filter out fields not in the schema
+    // eslint-disable-next-line no-unused-vars
+    const { bloodGroup, complexion, bodyType, ...validData } = data;
+
     const profile = await prisma.profile.create({
       data: {
         userId,
-        ...data,
+        ...validData,
         isDraft: false,        // Mark as complete
         isPublished: true,     // Auto-publish so it appears in searches
         publishedAt: new Date(), // Set publish timestamp
@@ -154,9 +158,13 @@ export const getProfileByUserId = async (userId, currentUserId = null) => {
  */
 export const updateProfile = async (userId, data) => {
   try {
+    // Filter out fields not in the schema
+    // eslint-disable-next-line no-unused-vars
+    const { bloodGroup, complexion, bodyType, ...validData } = data;
+
     const updatedProfile = await prisma.profile.update({
       where: { userId },
-      data,
+      data: validData,
     });
 
     // Recalculate and update completeness score
