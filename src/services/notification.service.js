@@ -33,10 +33,11 @@ const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  */
 const isPermanentError = (error) => {
   const permanentCodes = [
-    'messaging/registration-token-not-registered',
-    'messaging/invalid-argument',
+    'messaging/registration-token-not-registered', // HTTP 404 (Unregistered)
+    'messaging/invalid-argument',                  // HTTP 400 (Invalid Argument)
     'messaging/invalid-recipient',
-    'messaging/invalid-registration-token',
+    'messaging/invalid-registration-token',        // Token format is invalid
+    'messaging/mismatched-credential',             // Sender ID mismatch (treat as permanent for this token)
   ];
   return permanentCodes.includes(error.code);
 };
@@ -558,6 +559,105 @@ export const getMetrics = () => {
   return { ...metrics };
 };
 
+/**
+ * Register or update a device FCM token
+ * @param {number} userId - User ID
+ * @param {string} token - FCM token
+ * @param {string} deviceId - Unique device identifier
+ * @param {string} deviceType - 'ANDROID', 'IOS', 'WEB'
+ * @returns {Promise<Object>}
+ */
+export const registerDevice = async (userId, token, deviceId, deviceType) => {
+  try {
+    const existingToken = await prisma.fcmToken.findUnique({
+      where: {
+        userId_deviceId: {
+          userId,
+          deviceId,
+        },
+      },
+    });
+
+    if (existingToken) {
+      // Update existing token if changed or just update timestamp
+      return await prisma.fcmToken.update({
+        where: { id: existingToken.id },
+        data: {
+          token,
+          lastUsedAt: new Date(),
+          isActive: true,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Create new token relation
+      return await prisma.fcmToken.create({
+        data: {
+          userId,
+          token,
+          deviceId,
+          deviceType,
+          isActive: true,
+        },
+      });
+    }
+  } catch (error) {
+    logger.error('Error in registerDevice:', error);
+    throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Error registering device token');
+  }
+};
+
+/**
+ * Unregister a device FCM token (e.g. on logout)
+ * @param {number} userId - User ID
+ * @param {string} token - FCM token
+ * @returns {Promise<void>}
+ */
+export const unregisterDevice = async (userId, token) => {
+  try {
+    await prisma.fcmToken.deleteMany({
+      where: {
+        userId,
+        token,
+      },
+    });
+    logger.info(`🔌 Unregistered FCM token for user ${userId}`);
+  } catch (error) {
+    logger.error('Error in unregisterDevice:', error);
+    // Don't throw, just log. It's cleanup.
+  }
+};
+
+/**
+ * Remove stale tokens (older than 30 days)
+ * Can be called via cron or interval
+ */
+export const cleanupStaleTokens = async () => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const result = await prisma.fcmToken.deleteMany({
+      where: {
+        lastUsedAt: {
+          lt: thirtyDaysAgo,
+        },
+      },
+    });
+
+    if (result.count > 0) {
+      logger.info(`🧹 Cleaned up ${result.count} stale FCM tokens`);
+      metrics.invalidTokensRemoved += result.count;
+    }
+    return result.count;
+  } catch (error) {
+    logger.error('❌ Error cleaning up stale tokens:', error);
+    return 0;
+  }
+};
+
+
+
 export const notificationService = {
   createNotification,
   getUserNotifications,
@@ -567,4 +667,7 @@ export const notificationService = {
   deleteNotification,
   deleteAllNotifications,
   getMetrics,
+  registerDevice,
+  unregisterDevice,
+  cleanupStaleTokens,
 };

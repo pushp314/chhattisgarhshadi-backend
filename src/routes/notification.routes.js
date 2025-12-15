@@ -22,6 +22,8 @@ router.delete('/', notificationController.deleteAllNotifications);
 
 router.get('/unread-count', notificationController.getUnreadCount);
 
+router.post('/device', notificationController.registerDevice);
+router.delete('/device/:token', notificationController.unregisterDevice);
 
 router.put('/read-all', notificationController.markAllAsRead);
 

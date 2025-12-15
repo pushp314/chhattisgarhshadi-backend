@@ -92,6 +92,52 @@ export const deleteAllNotifications = asyncHandler(async (req, res) => {
     );
 });
 
+/**
+ * Register device for push notifications
+ */
+export const registerDevice = asyncHandler(async (req, res) => {
+  const { token, deviceId, deviceType } = req.body;
+
+  if (!token || !deviceId || !deviceType) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Missing required fields');
+  }
+
+  const result = await notificationService.registerDevice(
+    req.user.id,
+    token,
+    deviceId,
+    deviceType
+  );
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, result, 'Device registered successfully')
+    );
+});
+
+/**
+ * Unregister device (e.g. on logout)
+ */
+export const unregisterDevice = asyncHandler(async (req, res) => {
+  const { token } = req.params;
+
+  if (!token) {
+    throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Token is required');
+  }
+
+  // Decode token if it was doubly encoded (sometimes happens with slashes)
+  const decodedToken = decodeURIComponent(token);
+
+  await notificationService.unregisterDevice(req.user.id, decodedToken);
+
+  res
+    .status(HTTP_STATUS.OK)
+    .json(
+      new ApiResponse(HTTP_STATUS.OK, null, 'Device unregistered successfully')
+    );
+});
+
 export const notificationController = {
   getMyNotifications,
   markAsRead,
@@ -99,4 +145,6 @@ export const notificationController = {
   getUnreadCount,
   deleteNotification,
   deleteAllNotifications,
+  registerDevice,
+  unregisterDevice, // Export new method
 };
