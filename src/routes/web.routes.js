@@ -50,7 +50,7 @@ router.post('/payment/create-link', async (req, res) => {
                 paymentId: order.paymentId,
                 amount: order.amount
             },
-            config.JWT_SECRET,
+            config.JWT_ACCESS_SECRET,
             { expiresIn: '30m' } // Token valid for 30 minutes
         );
 
@@ -94,7 +94,7 @@ router.get('/payment/details', async (req, res) => {
         }
 
         // Verify the token
-        const decoded = jwt.verify(token, config.JWT_SECRET);
+        const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET);
 
         // Get user and plan details
         const [user, plan] = await Promise.all([
@@ -277,7 +277,7 @@ router.post('/boost/create-link', async (req, res) => {
                 amount: order.amount,
                 type: 'BOOST'
             },
-            config.JWT_SECRET,
+            config.JWT_ACCESS_SECRET,
             { expiresIn: '30m' }
         );
 
@@ -320,7 +320,7 @@ router.get('/boost/details', async (req, res) => {
             });
         }
 
-        const decoded = jwt.verify(token, config.JWT_SECRET);
+        const decoded = jwt.verify(token, config.JWT_ACCESS_SECRET);
 
         if (decoded.type !== 'BOOST') {
             return res.status(400).json({
