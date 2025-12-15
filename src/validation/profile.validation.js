@@ -44,9 +44,6 @@ const profileBodyBase = {
   // Physical Attributes
   height: z.number().int().positive().min(100).max(250).optional(), // FIX: Made optional
   weight: z.number().int().positive().optional(),
-  bloodGroup: z.string().optional(), // ADDED
-  complexion: z.string().optional(), // ADDED (Recommend z.nativeEnum(COMPLEXION))
-  bodyType: z.string().optional(), // ADDED (Recommend z.nativeEnum(BODY_TYPE))
   physicalDisability: z.string().max(1000).optional(), // ADDED
 
   // Lifestyle
@@ -80,7 +77,6 @@ const profileBodyBase = {
   sistersMarried: z.number().int().min(0).optional(), // ADDED
   familyType: z.string().optional(), // ADDED (Recommend z.nativeEnum(FAMILY_TYPE))
   familyValues: z.string().optional(), // ADDED (Recommend z.nativeEnum(FAMILY_VALUES))
-  familyStatus: z.string().optional(), // ADDED (Recommend z.nativeEnum(FAMILY_STATUS))
   familyIncome: z.string().optional(), // ADDED
   ancestralOrigin: z.string().optional(), // ADDED
 

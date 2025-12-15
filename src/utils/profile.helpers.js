@@ -25,8 +25,6 @@ export const calculateProfileCompleteness = (profile) => {
     // Physical (10 points)
     { key: 'height', weight: 3 },
     { key: 'weight', weight: 2 },
-    { key: 'complexion', weight: 2 },
-    { key: 'bodyType', weight: 2 },
     { key: 'physicalDisability', weight: 1 }, // Presence of info is what matters
 
     // Religion & Caste (10 points)
@@ -58,13 +56,12 @@ export const calculateProfileCompleteness = (profile) => {
     { key: 'diet', weight: 3 },
     { key: 'smokingHabit', weight: 3 },
     { key: 'drinkingHabit', weight: 3 },
-    { key: 'bloodGroup', weight: 1 },
-    
+
     // Horoscope (5 points)
     { key: 'manglik', weight: 1 },
     { key: 'birthTime', weight: 2 },
     { key: 'birthPlace', weight: 2 },
-    
+
     // Partner Expectations (5 points)
     { key: 'partnerExpectations', weight: 5 },
   ];
@@ -75,13 +72,13 @@ export const calculateProfileCompleteness = (profile) => {
 
   fields.forEach(field => {
     const value = profile[field.key];
-    
+
     // Check if value is not null, undefined, or an empty string
     if (value !== null && value !== undefined && value !== '') {
       // Specific checks for booleans where 'false' is also a valid entry
       if (typeof value === 'boolean') {
         score += field.weight;
-      } 
+      }
       // Specific check for numbers where 0 is a valid entry
       else if (typeof value === 'number' && value >= 0) {
         score += field.weight;
@@ -96,7 +93,7 @@ export const calculateProfileCompleteness = (profile) => {
   // Calculate percentage
   if (maxScore === 0) return 0;
   // Score is now based on a max of 100
-  return Math.min(100, Math.floor(score)); 
+  return Math.min(100, Math.floor(score));
 };
 
 /**
@@ -125,7 +122,7 @@ export const updateProfileCompleteness = async (prisma, userId) => {
   }
 
   // Final score is capped at 100
-  const finalScore = Math.min(100, score); 
+  const finalScore = Math.min(100, score);
 
   await prisma.profile.update({
     where: { userId },
