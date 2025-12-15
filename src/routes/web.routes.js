@@ -71,7 +71,7 @@ router.post('/payment/create-link', async (req, res) => {
 
     } catch (error) {
         console.error('[Web Payment] Error creating payment link:', error);
-        res.status(500).json({
+        res.status(error.statusCode || 500).json({
             success: false,
             error: error.message || 'Failed to create payment link'
         });
