@@ -4,6 +4,14 @@ import { SOCKET_EVENTS, MESSAGE_STATUS } from '../../utils/constants.js';
 import prisma from '../../config/database.js';
 
 /**
+ * THROTTLE: Track last typing event timestamp per user+receiver pair
+ * Key: `${userId}:${receiverId}`, Value: timestamp in ms
+ * Allows max 1 typing event per second per conversation
+ */
+const typingThrottle = new Map();
+const TYPING_THROTTLE_MS = 1000; // 1 second
+
+/**
  * Setup message event handlers
  * @param {Object} io - Socket.io instance
  * @param {Object} socket - Socket instance
@@ -60,7 +68,23 @@ export const setupMessageHandlers = (io, socket) => {
         throw new Error('Invalid message ID for delivery confirmation');
       }
 
-      // Update message status in database
+      // SECURITY FIX: Verify socket user is the actual receiver
+      const message = await prisma.message.findUnique({
+        where: { id: messageId },
+        select: { receiverId: true, status: true },
+      });
+
+      if (!message) {
+        logger.warn(`MESSAGE_DELIVERED: Message ${messageId} not found`);
+        return;
+      }
+
+      if (message.receiverId !== socket.userId) {
+        logger.warn(`MESSAGE_DELIVERED: Unauthorized attempt by user ${socket.userId} for message ${messageId}`);
+        return; // Silently reject - don't reveal message exists
+      }
+
+      // Authorization passed - update message status in database
       await prisma.message.update({
         where: { id: messageId },
         data: {
@@ -112,28 +136,43 @@ export const setupMessageHandlers = (io, socket) => {
   });
 
   /**
-   * Handle typing start
+   * Handle typing start (THROTTLED: 1 per second per conversation)
    */
   socket.on(SOCKET_EVENTS.TYPING_START, (data) => {
     const { receiverId } = data;
-    if (receiverId) {
-      // Emit to the receiver's room
-      io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.TYPING_START, {
-        userId: socket.userId,
-      });
+    if (!receiverId) return;
+
+    // SERVER-SIDE THROTTLE: Drop excess events silently
+    const key = `${socket.userId}:${receiverId}`;
+    const now = Date.now();
+    const lastTyping = typingThrottle.get(key) || 0;
+
+    if (now - lastTyping < TYPING_THROTTLE_MS) {
+      return; // Silently drop, too soon
     }
+
+    typingThrottle.set(key, now);
+
+    // Emit to the receiver's room
+    io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.TYPING_START, {
+      userId: socket.userId,
+    });
   });
 
   /**
-   * Handle typing stop
+   * Handle typing stop (no throttle needed - stop events are important)
    */
   socket.on(SOCKET_EVENTS.TYPING_STOP, (data) => {
     const { receiverId } = data;
-    if (receiverId) {
-      // Emit to the receiver's room
-      io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.TYPING_STOP, {
-        userId: socket.userId,
-      });
-    }
+    if (!receiverId) return;
+
+    // Clear throttle on stop (allows immediate next start)
+    const key = `${socket.userId}:${receiverId}`;
+    typingThrottle.delete(key);
+
+    // Emit to the receiver's room
+    io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.TYPING_STOP, {
+      userId: socket.userId,
+    });
   });
 };
