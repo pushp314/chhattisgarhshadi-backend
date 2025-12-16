@@ -13,19 +13,19 @@ import { getSocketIoInstance } from '../socket/index.js';
  * Send message
  */
 export const sendMessage = asyncHandler(async (req, res) => {
-  const { receiverId, content } = req.body;
+  const { receiverId, content, contentType = 'TEXT' } = req.body; // NEW: contentType param
 
   // The service now returns a message with a "safe" user object
   const message = await messageService.sendMessage(
     req.user.id,
     receiverId,
-    content
+    content,
+    contentType // NEW: pass contentType
   );
 
   // Emit to receiver via socket
   const io = getSocketIoInstance();
   if (io) {
-    // This line now works
     io.to(`user:${receiverId}`).emit(SOCKET_EVENTS.MESSAGE_RECEIVED, message);
   }
 

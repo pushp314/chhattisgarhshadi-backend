@@ -22,7 +22,7 @@ export const setupMessageHandlers = (io, socket) => {
    */
   socket.on(SOCKET_EVENTS.MESSAGE_SEND, async (data, callback) => {
     try {
-      const { receiverId, content } = data;
+      const { receiverId, content, contentType = 'TEXT' } = data; // NEW: contentType param
 
       if (!receiverId || !content) {
         throw new Error('Invalid message data');
@@ -32,7 +32,8 @@ export const setupMessageHandlers = (io, socket) => {
       const message = await messageService.sendMessage(
         socket.userId,
         receiverId,
-        content
+        content,
+        contentType // NEW: pass contentType
       );
 
       // 2. Emit to receiver's room (will send to all their devices)

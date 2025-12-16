@@ -293,6 +293,8 @@ model User {
   receivedMatchRequests MatchRequest[]      @relation("MatchRequestReceiver")
   sentMessages          Message[]           @relation("MessageSender")
   receivedMessages      Message[]           @relation("MessageReceiver")
+  conversationsAsUserA  Conversation[]      @relation("ConversationUserA")
+  conversationsAsUserB  Conversation[]      @relation("ConversationUserB")
   subscriptions         UserSubscription[]
   payments              Payment[]
   notifications         Notification[]
@@ -884,6 +886,13 @@ model BlockedUser {
 // MESSAGING SYSTEM
 // ============================================
 
+// NEW: Message content type for explicit type safety
+enum MessageContentType {
+  TEXT
+  IMAGE
+  SYSTEM
+}
+
 enum MessageStatus {
   SENT      // Message sent to server
   DELIVERED // Message received by recipient's device
@@ -891,34 +900,66 @@ enum MessageStatus {
   FAILED    // Message failed to send
 }
 
+// NEW: Conversation abstraction for proper chat isolation
+model Conversation {
+  id        Int @id @default(autoincrement())
+
+  userAId   Int
+  userA     User @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   Int
+  userB     User @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Message[]
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+  @@index([updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
 model Message {
-  id         Int  @id @default(autoincrement())
+  id Int @id @default(autoincrement())
+
+  // Conversation reference (NEW - required after migration)
+  conversationId Int?
+  conversation   Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
   senderId   Int
   sender     User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
   receiverId Int
   receiver   User @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
 
-  content        String  @db.Text
-  attachmentUrl  String? @db.Text // LOCAL PATH: /uploads/chat-media/{conversationId}/img-{timestamp}.jpg
-  attachmentType String? @db.VarChar(50)
+  // Content with explicit type (NEW)
+  content     String? @db.Text
+  contentType MessageContentType @default(TEXT)
 
-  // ADDED: Message delivery status (sent → delivered → read)
+  // Attachments with MIME type (IMPROVED)
+  attachmentUrl  String? @db.Text
+  attachmentMime String? @db.VarChar(100)
+
+  // Delivery status - single source of truth (FIXED: removed isRead)
   status      MessageStatus @default(SENT)
   deliveredAt DateTime?
-  
-  isRead Boolean   @default(false)
-  readAt DateTime?
+  readAt      DateTime?
 
-  isDeleted Boolean   @default(false)
-  deletedAt DateTime?
-  deletedBy Int?
+  // Per-user soft deletion (FIXED: replaces isDeleted/deletedBy)
+  isDeletedBySender   Boolean @default(false)
+  isDeletedByReceiver Boolean @default(false)
+
+  // Extensibility
+  metadata Json?
 
   createdAt DateTime @default(now())
 
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([receiverId, status])
+  @@index([senderId])
   @@index([senderId, receiverId])
-  @@index([receiverId, isRead])
-  @@index([receiverId, status]) // ADDED: for delivery status queries
-  @@index([createdAt(sort: Desc)])
   @@map("messages")
 }
 

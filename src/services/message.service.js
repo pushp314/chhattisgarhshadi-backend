@@ -35,9 +35,10 @@ const userPublicSelect = {
  * @param {number} senderId - Sender user ID
  * @param {number} receiverId - Receiver user ID
  * @param {string} content - Message content
+ * @param {string} contentType - Message content type (TEXT, IMAGE, SYSTEM)
  * @returns {Promise<Object>}
  */
-export const sendMessage = async (senderId, receiverId, content) => {
+export const sendMessage = async (senderId, receiverId, content, contentType = 'TEXT') => {
   try {
     if (senderId === receiverId) {
       throw new ApiError(
@@ -63,8 +64,6 @@ export const sendMessage = async (senderId, receiverId, content) => {
     }
 
     // --- SENDER Subscription Check ---
-    // Only the SENDER needs premium to send messages
-    // Premium users can message anyone, non-premium users can receive but not send
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
       include: {
@@ -88,11 +87,30 @@ export const sendMessage = async (senderId, receiverId, content) => {
     }
     // --- End SENDER Subscription Check ---
 
+    // --- NEW: Find or create Conversation ---
+    const userAId = Math.min(senderId, receiverId);
+    const userBId = Math.max(senderId, receiverId);
+
+    let conversation = await prisma.conversation.findUnique({
+      where: {
+        userAId_userBId: { userAId, userBId },
+      },
+    });
+
+    if (!conversation) {
+      conversation = await prisma.conversation.create({
+        data: { userAId, userBId },
+      });
+    }
+    // --- End Conversation ---
+
     const message = await prisma.message.create({
       data: {
         senderId,
         receiverId,
+        conversationId: conversation.id,
         content,
+        contentType, // NEW: explicit content type
       },
       include: {
         sender: {
@@ -102,6 +120,12 @@ export const sendMessage = async (senderId, receiverId, content) => {
           select: userPublicSelect,
         },
       },
+    });
+
+    // Update conversation timestamp
+    await prisma.conversation.update({
+      where: { id: conversation.id },
+      data: { updatedAt: new Date() },
     });
 
     // ADDED: Send push notification to receiver
@@ -137,9 +161,6 @@ export const sendMessage = async (senderId, receiverId, content) => {
 export const getConversation = async (userId, otherUserId, query) => {
   try {
     // --- Block Check [ADDED] ---
-    // Note: We check this *before* loading the conversation.
-    // If you want to allow users to see old messages, remove this check.
-    // But this implementation prevents loading the chat screen entirely.
     const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
     if (blockedIdSet.has(otherUserId)) {
       throw new ApiError(HTTP_STATUS.FORBIDDEN, 'You cannot view this conversation');
@@ -148,10 +169,20 @@ export const getConversation = async (userId, otherUserId, query) => {
 
     const { page, limit, skip } = getPaginationParams(query);
 
+    // NEW: Per-user deletion visibility filter
     const where = {
       OR: [
         { senderId: userId, receiverId: otherUserId },
         { senderId: otherUserId, receiverId: userId },
+      ],
+      // NEW: Only show messages not deleted by this user
+      AND: [
+        {
+          OR: [
+            { senderId: userId, isDeletedBySender: false },
+            { receiverId: userId, isDeletedByReceiver: false },
+          ],
+        },
       ],
     };
 
@@ -250,13 +281,14 @@ export const getAllConversations = async (userId) => {
       ])
     );
 
-    // Step 4: Get all unread counts in one query
+    // Step 4: Get all unread counts in one query (NEW: use status field)
     const unreadCounts = await prisma.message.groupBy({
       by: ['senderId'],
       where: {
         receiverId: userId,
         senderId: { in: otherUserIds },
-        isRead: false,
+        status: { in: ['SENT', 'DELIVERED'] }, // All non-READ statuses
+        isDeletedByReceiver: false,
       },
       _count: {
         id: true,
@@ -297,21 +329,21 @@ export const getAllConversations = async (userId) => {
 export const markMessagesAsRead = async (userId, otherUserId) => {
   try {
     // --- Block Check [ADDED] ---
-    // Prevent marking as read if user is blocked (as they shouldn't see conversation)
     const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
     if (blockedIdSet.has(otherUserId)) {
       throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Cannot interact with this user');
     }
     // --- End Block Check ---
 
+    // NEW: Use status field (single source of truth) instead of isRead
     const result = await prisma.message.updateMany({
       where: {
         senderId: otherUserId,
         receiverId: userId,
-        isRead: false,
+        status: { in: ['SENT', 'DELIVERED'] }, // Only update non-read messages
       },
       data: {
-        isRead: true,
+        status: 'READ',
         readAt: new Date(),
       },
     });
@@ -326,7 +358,7 @@ export const markMessagesAsRead = async (userId, otherUserId) => {
 };
 
 /**
- * Delete message
+ * Delete message (per-user soft delete)
  * @param {number} messageId - Message ID
  * @param {number} userId - User ID
  * @returns {Promise<void>}
@@ -341,29 +373,27 @@ export const deleteMessage = async (messageId, userId) => {
       throw new ApiError(HTTP_STATUS.NOT_FOUND, ERROR_MESSAGES.MESSAGE_NOT_FOUND);
     }
 
-    // Only sender can delete message
-    if (message.senderId !== userId) {
+    // NEW: Per-user deletion - both sender AND receiver can delete for themselves
+    const isSender = message.senderId === userId;
+    const isReceiver = message.receiverId === userId;
+
+    if (!isSender && !isReceiver) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
-        'You can only delete your own messages'
+        'You cannot delete this message'
       );
     }
 
-    // No block check needed - user is allowed to delete their *own* messages.
-
-    // We will just mark as deleted for now, so the receiver can still see it.
-    // To truly delete, use prisma.message.delete()
+    // NEW: Set the appropriate per-user deletion flag
     await prisma.message.update({
       where: { id: messageId },
       data: {
-        content: 'This message was deleted',
-        isDeleted: true,
-        deletedAt: new Date(),
-        deletedBy: userId,
+        ...(isSender && { isDeletedBySender: true }),
+        ...(isReceiver && { isDeletedByReceiver: true }),
       }
     });
 
-    logger.info(`Message marked as deleted: ${messageId}`);
+    logger.info(`Message ${messageId} marked as deleted by user ${userId} (${isSender ? 'sender' : 'receiver'})`);
   } catch (error) {
     logger.error('Error in deleteMessage:', error);
     if (error instanceof ApiError) throw error;
@@ -382,11 +412,13 @@ export const getUnreadCount = async (userId) => {
     const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
     // --- End Block Check ---
 
+    // NEW: Use status field instead of isRead
     const count = await prisma.message.count({
       where: {
         receiverId: userId,
-        isRead: false,
-        senderId: { notIn: Array.from(blockedIdSet) }, // [MODIFIED]
+        status: { in: ['SENT', 'DELIVERED'] }, // All non-READ statuses
+        senderId: { notIn: Array.from(blockedIdSet) },
+        isDeletedByReceiver: false, // Don't count deleted messages
       },
     });
 
