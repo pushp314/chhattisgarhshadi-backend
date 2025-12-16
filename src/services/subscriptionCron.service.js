@@ -161,6 +161,39 @@ export const handleExpiredSubscriptions = async () => {
 };
 
 /**
+ * Mark expired interest requests as EXPIRED
+ * Run this daily (e.g., at midnight)
+ */
+export const handleExpiredInterests = async () => {
+    logger.info('Running expired interest handler...');
+
+    try {
+        const now = new Date();
+
+        // Find PENDING interests where expiresAt has passed
+        const result = await prisma.matchRequest.updateMany({
+            where: {
+                status: 'PENDING',
+                expiresAt: {
+                    lt: now,
+                    not: null, // Only if expiresAt is set
+                },
+            },
+            data: {
+                status: 'EXPIRED',
+            },
+        });
+
+        logger.info(`Expired interest handler completed. Marked ${result.count} interests as EXPIRED.`);
+        return { success: true, expiredCount: result.count };
+
+    } catch (error) {
+        logger.error('Error in handleExpiredInterests:', error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
  * Initialize cron jobs
  * Call this on server startup
  */
@@ -179,17 +212,22 @@ export const initSubscriptionCronJobs = () => {
     // In production, use node-cron: cron.schedule('0 0 * * *', handleExpiredSubscriptions)
     setInterval(handleExpiredSubscriptions, ONE_DAY);
 
+    // Run expired interests handler every 24 hours
+    setInterval(handleExpiredInterests, ONE_DAY);
+
     // Run once on startup (after 5 seconds delay to let server fully start)
     setTimeout(() => {
         sendExpiryReminders();
         handleExpiredSubscriptions();
+        handleExpiredInterests();
     }, 5000);
 
-    logger.info('Subscription cron jobs initialized');
+    logger.info('Subscription cron jobs initialized (including interest expiry)');
 };
 
 export default {
     sendExpiryReminders,
     handleExpiredSubscriptions,
+    handleExpiredInterests,
     initSubscriptionCronJobs,
 };

@@ -1,12 +1,14 @@
 import prisma from '../config/database.js';
 import { ApiError } from '../utils/ApiError.js';
-import { HTTP_STATUS, ERROR_MESSAGES, MATCH_STATUS, NOTIFICATION_TYPES } from '../utils/constants.js';
+import { HTTP_STATUS, ERROR_MESSAGES, MATCH_STATUS, NOTIFICATION_TYPES, SOCKET_EVENTS } from '../utils/constants.js';
 import { getPaginationParams, getPaginationMetadata } from '../utils/helpers.js';
 import { logger } from '../config/logger.js';
 // ADDED: Import the blockService to check for blocks
 import { blockService } from './block.service.js';
 // ADDED: Import notificationService for push notifications
 import { notificationService } from './notification.service.js';
+// ADDED: Import socket for real-time match updates
+import { getSocketIoInstance } from '../socket/index.js';
 
 // Reusable Prisma select for public-facing user data
 // Prevents leaking sensitive fields like email, phone, googleId, etc.
@@ -214,6 +216,20 @@ export const acceptMatchRequest = async (matchId, userId) => {
         userName: accepterName,
       },
     }).catch(err => logger.error('Failed to send match accepted notification:', err));
+
+    // ADDED: Emit real-time MATCH_ACCEPTED to both users
+    const io = getSocketIoInstance();
+    if (io) {
+      const matchData = {
+        matchId,
+        acceptedBy: userId,
+        acceptedAt: updatedMatch.respondedAt,
+      };
+      // Emit to sender (original requester)
+      io.to(`user:${match.senderId}`).emit(SOCKET_EVENTS.MATCH_ACCEPTED, matchData);
+      // Emit to receiver (the accepter) for UI consistency
+      io.to(`user:${userId}`).emit(SOCKET_EVENTS.MATCH_ACCEPTED, matchData);
+    }
 
     logger.info(`Match request accepted: ${matchId}`);
     return updatedMatch;
