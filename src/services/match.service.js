@@ -49,18 +49,22 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
       );
     }
 
-    // --- Check User Subscription Status ---
+    // --- Check User Subscription Status with Plan Limits ---
     const sender = await prisma.user.findUnique({
       where: { id: fromUserId },
       include: {
         subscriptions: {
           where: { status: 'ACTIVE', endDate: { gt: new Date() } },
+          include: { plan: true },
           take: 1,
         },
+        profile: { select: { firstName: true } },
       },
     });
 
-    const isPremium = sender?.subscriptions?.length > 0 || sender?.role === 'PREMIUM_USER';
+    const isPremiumRole = sender?.role === 'PREMIUM_USER';
+    const activeSubscription = sender?.subscriptions?.[0];
+    const isPremium = isPremiumRole || !!activeSubscription;
 
     // --- Free User Limit Check ---
     if (!isPremium) {
@@ -83,7 +87,27 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
         );
       }
     }
-    // --- End Free User Limit Check ---
+
+    // --- Subscription Plan Limit Check ---
+    if (activeSubscription && !isPremiumRole) {
+      const maxInterests = activeSubscription.plan.maxInterestsSend;
+      const usedInterests = activeSubscription.interestsUsed;
+
+      // 0 = unlimited
+      if (maxInterests !== 0 && usedInterests >= maxInterests) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          `You have reached your interest request limit (${maxInterests}). Upgrade to Premium for unlimited requests.`,
+          {
+            currentPlan: activeSubscription.plan.name,
+            used: usedInterests,
+            max: maxInterests,
+            upgradeRequired: true,
+          }
+        );
+      }
+    }
+    // --- End Subscription Checks ---
 
     // --- Block Check ---
     const blockedIdSet = await blockService.getAllBlockedUserIds(fromUserId);
@@ -127,6 +151,15 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
       },
     });
 
+    // --- Increment interest usage for subscription users ---
+    if (activeSubscription && !isPremiumRole) {
+      await prisma.userSubscription.update({
+        where: { id: activeSubscription.id },
+        data: { interestsUsed: { increment: 1 } },
+      });
+    }
+    // --- End Usage Tracking ---
+
     // ADDED: Send push notification to receiver
     const senderName = sender?.profile?.firstName || 'Someone';
     notificationService.createNotification({
@@ -144,9 +177,20 @@ export const sendMatchRequest = async (fromUserId, receiverId, message) => {
 
     logger.info(`Match request sent from ${fromUserId} to ${receiverId}`);
 
-    // Return match with remaining count for free users
-    const remaining = isPremium ? null : (FREE_MONTHLY_LIMIT - (sentThisMonth + 1));
-    return { ...match, freeRequestsRemaining: remaining };
+    // Return match with remaining count
+    let remaining = null;
+    if (!isPremium) {
+      const startOfMonth = new Date();
+      startOfMonth.setDate(1);
+      startOfMonth.setHours(0, 0, 0, 0);
+      const sentThisMonth = await prisma.matchRequest.count({
+        where: { senderId: fromUserId, createdAt: { gte: startOfMonth } },
+      });
+      remaining = 3 - sentThisMonth;
+    } else if (activeSubscription && activeSubscription.plan.maxInterestsSend !== 0) {
+      remaining = activeSubscription.plan.maxInterestsSend - (activeSubscription.interestsUsed + 1);
+    }
+    return { ...match, requestsRemaining: remaining };
   } catch (error) {
     logger.error('Error in sendMatchRequest:', error);
     if (error instanceof ApiError) throw error;

@@ -63,7 +63,7 @@ export const sendMessage = async (senderId, receiverId, content, contentType = '
       throw new ApiError(HTTP_STATUS.NOT_FOUND, 'Receiver not found');
     }
 
-    // --- SENDER Subscription Check ---
+    // --- SENDER Subscription Check with Plan Limits ---
     const sender = await prisma.user.findUnique({
       where: { id: senderId },
       include: {
@@ -72,18 +72,39 @@ export const sendMessage = async (senderId, receiverId, content, contentType = '
             status: 'ACTIVE',
             endDate: { gt: new Date() },
           },
+          include: { plan: true },
         },
       },
     });
 
     const senderIsPremiumRole = sender?.role === 'PREMIUM_USER';
-    const senderHasActiveSubscription = sender?.subscriptions?.length > 0;
+    const activeSubscription = sender?.subscriptions?.[0];
 
-    if (!senderIsPremiumRole && !senderHasActiveSubscription) {
+    if (!senderIsPremiumRole && !activeSubscription) {
       throw new ApiError(
         HTTP_STATUS.FORBIDDEN,
         'You need a premium subscription to send messages. Upgrade to start chatting!'
       );
+    }
+
+    // Check plan-level message limits (only for subscription users, not PREMIUM_USER role)
+    if (activeSubscription && !senderIsPremiumRole) {
+      const maxMessages = activeSubscription.plan.maxMessagesSend;
+      const usedMessages = activeSubscription.messagesUsed;
+
+      // 0 = unlimited
+      if (maxMessages !== 0 && usedMessages >= maxMessages) {
+        throw new ApiError(
+          HTTP_STATUS.FORBIDDEN,
+          `You have reached your message limit (${maxMessages}). Upgrade to Premium for unlimited messages.`,
+          {
+            currentPlan: activeSubscription.plan.name,
+            used: usedMessages,
+            max: maxMessages,
+            upgradeRequired: true,
+          }
+        );
+      }
     }
     // --- End SENDER Subscription Check ---
 
@@ -127,6 +148,15 @@ export const sendMessage = async (senderId, receiverId, content, contentType = '
       where: { id: conversation.id },
       data: { updatedAt: new Date() },
     });
+
+    // --- Increment message usage for subscription users ---
+    if (activeSubscription && !senderIsPremiumRole) {
+      await prisma.userSubscription.update({
+        where: { id: activeSubscription.id },
+        data: { messagesUsed: { increment: 1 } },
+      });
+    }
+    // --- End Usage Tracking ---
 
     // ADDED: Send push notification to receiver
     const senderName = message.sender?.profile?.firstName || 'Someone';

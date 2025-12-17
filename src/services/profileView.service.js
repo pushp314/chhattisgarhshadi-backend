@@ -147,19 +147,24 @@ export const getWhoViewedMe = async (userId, query) => {
   const { page, limit, skip } = getPaginationParams(query);
 
   try {
-    // --- Check User Subscription Status ---
+    // --- Check User Subscription Status and Plan Features ---
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
         subscriptions: {
           where: { status: 'ACTIVE', endDate: { gt: new Date() } },
+          include: { plan: true },
           take: 1,
         },
       },
     });
 
-    const isPremium = user?.subscriptions?.length > 0 || user?.role === 'PREMIUM_USER';
-    const FREE_VIEW_LIMIT = 2; // Free users can only see last 2 viewers
+    const activeSubscription = user?.subscriptions?.[0];
+    const isPremium = user?.role === 'PREMIUM_USER' ||
+      (activeSubscription && activeSubscription.plan?.canSeeProfileVisitors === true);
+
+    // Basic plan users (who can't see profile visitors) are treated like free users
+    const FREE_VIEW_LIMIT = 2; // Free/Basic users can only see last 2 viewers
 
     const blockedIdSet = await blockService.getAllBlockedUserIds(userId);
     const blockedIds = Array.from(blockedIdSet);
