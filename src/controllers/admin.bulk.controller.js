@@ -100,6 +100,29 @@ class AdminBulkController {
                                     occupation: row.occupation,
                                     annualIncome: row.annualIncome ? String(row.annualIncome) : undefined,
 
+                                    // Extended Fields
+                                    middleName: row.middleName,
+                                    weight: row.weight ? parseInt(row.weight) : undefined,
+                                    diet: row.diet,
+                                    drinkingHabit: row.drinkingHabit,
+                                    smokingHabit: row.smokingHabit,
+
+                                    // Family
+                                    fatherName: row.fatherName,
+                                    motherName: row.motherName,
+                                    numberOfBrothers: row.numberOfBrothers ? parseInt(row.numberOfBrothers) : 0,
+                                    numberOfSisters: row.numberOfSisters ? parseInt(row.numberOfSisters) : 0,
+
+                                    // Local Specifics
+                                    nativeDistrict: row.nativeDistrict,
+                                    nativeTehsil: row.nativeTehsil,
+                                    nativeVillage: row.nativeVillage,
+                                    speaksChhattisgarhi: row.speaksChhattisgarhi === 'YES' || row.speaksChhattisgarhi === true,
+
+                                    // Astro
+                                    manglik: row.manglik === 'YES' || row.manglik === true,
+
+
                                     // Defaults
                                     profilePrivacySettings: { create: {} },
                                     partnerPreference: { create: {} }
