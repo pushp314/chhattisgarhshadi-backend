@@ -1,5 +1,7 @@
 import { Router } from 'express';
+import multer from 'multer'; // ADDED
 import { adminController } from '../controllers/admin.controller.js';
+import { adminBulkController } from '../controllers/admin.bulk.controller.js'; // ADDED
 import { authenticate, requireAdmin } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.middleware.js';
 import {
@@ -24,6 +26,8 @@ import activityLogRoutes from './activityLog.routes.js';
 import auditLogRoutes from './auditLog.routes.js';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() }); // ADDED: Memory storage for Excel
+
 
 // All routes require authentication and admin role
 router.use(authenticate, requireAdmin);
@@ -34,6 +38,14 @@ router.get(
   validate(paginationQuerySchema),
   adminController.getAllUsers
 );
+
+// ADDED: Bulk User Upload
+router.post(
+  '/users/bulk-upload',
+  upload.single('file'),
+  adminBulkController.uploadUsers
+);
+
 router.get(
   '/users/recent',
   validate(recentQuerySchema),
