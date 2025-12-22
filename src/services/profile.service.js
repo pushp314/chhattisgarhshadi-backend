@@ -217,8 +217,9 @@ export const searchProfiles = async (query, currentUserId = null) => {
       maritalStatus,
       minHeight,
       maxHeight,
-      nativeDistrict,
+      nativeVillage,
       speaksChhattisgarhi,
+      category,
       // NEW FILTERS
       education,
       income,
@@ -271,8 +272,10 @@ export const searchProfiles = async (query, currentUserId = null) => {
       }
     }
 
-    if (nativeDistrict) where.nativeDistrict = { equals: nativeDistrict, mode: 'insensitive' };
+    if (nativeVillage) where.nativeVillage = { contains: nativeVillage, mode: 'insensitive' };
     if (speaksChhattisgarhi !== undefined) where.speaksChhattisgarhi = speaksChhattisgarhi === 'true' || speaksChhattisgarhi === true;
+    if (category) where.category = { equals: category, mode: 'insensitive' }; // ADDED
+
 
     // Religion - Support comma-separated string or array
     if (religions) {

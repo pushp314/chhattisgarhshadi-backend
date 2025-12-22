@@ -20,7 +20,7 @@ export const calculateProfileCompleteness = (profile) => {
     { key: 'state', weight: 2 },
     { key: 'city', weight: 2 },
     { key: 'residencyStatus', weight: 2 },
-    { key: 'nativeDistrict', weight: 2 }, // Chhattisgarh-Specific
+    { key: 'nativeVillage', weight: 2 }, // Chhattisgarh-Specific
 
     // Physical (10 points)
     { key: 'height', weight: 3 },
@@ -29,7 +29,9 @@ export const calculateProfileCompleteness = (profile) => {
 
     // Religion & Caste (10 points)
     { key: 'religion', weight: 3 },
-    { key: 'caste', weight: 3 },
+    { key: 'category', weight: 2 }, // ADDED
+    { key: 'caste', weight: 2 }, // Reduced from 3
+
     { key: 'motherTongue', weight: 2 },
     { key: 'speaksChhattisgarhi', weight: 2 }, // Chhattisgarh-Specific
 

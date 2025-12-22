@@ -31,13 +31,12 @@ const profileBodyBase = {
   // Religious Information
   religion: z.nativeEnum(RELIGION),
   motherTongue: z.nativeEnum(MOTHER_TONGUE),
+  category: z.string().optional(), // ADDED
   caste: z.string().min(2).optional(), // FIX: Made optional to match schema
   subCaste: z.string().optional(),
   gothram: z.string().optional(), // ADDED
 
   // Chhattisgarh-Specific
-  nativeDistrict: z.string().optional(),
-  nativeTehsil: z.string().optional(),
   nativeVillage: z.string().optional(),
   speaksChhattisgarhi: z.boolean().optional(), // Use optional, not default
 
@@ -150,8 +149,10 @@ export const searchProfilesSchema = z.object({
     maritalStatus: z.nativeEnum(MARITAL_STATUS).optional(),
     minHeight: z.coerce.number().int().optional(),
     maxHeight: z.coerce.number().int().optional(),
-    nativeDistrict: z.string().optional(), // ADDED: For Chhattisgarh search
-    speaksChhattisgarhi: z.coerce.boolean().optional(), // ADDED: For Chhattisgarh search
+    maxHeight: z.coerce.number().int().optional(),
+    nativeVillage: z.string().optional(),
+    speaksChhattisgarhi: z.coerce.boolean().optional(), // For Chhattisgarh search
+    category: z.string().optional(), // ADDED
   }),
 });
 

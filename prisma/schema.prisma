@@ -528,14 +528,13 @@ model Profile {
 
   // Religious Information
   religion     Religion
+  category     String?      @db.VarChar(100) // Added for 3-step selection
   caste        String?      @db.VarChar(100)
   subCaste     String?      @db.VarChar(100)
   motherTongue MotherTongue
   gothram      String?      @db.VarChar(100)
 
-  // Chhattisgarh-Specific Fields (NEW)
-  nativeDistrict      String? @db.VarChar(100) // Native district in Chhattisgarh
-  nativeTehsil        String? @db.VarChar(100) // Tehsil/Block
+  // Chhattisgarh-Specific Fields
   nativeVillage       String? @db.VarChar(100) // Village/Town name
   speaksChhattisgarhi Boolean @default(true) // Speaks Chhattisgarhi language?
 
@@ -643,7 +642,7 @@ model Profile {
   @@index([maritalStatus])
   @@index([isVerified, isPublished])
   @@index([profileCompleteness(sort: Desc)])
-  @@index([nativeDistrict]) // For Chhattisgarh-specific searches
+  @@index([nativeVillage]) // For Chhattisgarh-specific searches
   @@index([speaksChhattisgarhi])
   @@map("profiles")
 }
@@ -681,7 +680,6 @@ model PartnerPreference {
   residencyStatus String? @db.Text
 
   // Chhattisgarh-Specific (NEW)
-  nativeDistrict         String?  @db.Text // Preferred native districts
   mustSpeakChhattisgarhi Boolean? // Must speak Chhattisgarhi?
 
   // Education & Occupation
