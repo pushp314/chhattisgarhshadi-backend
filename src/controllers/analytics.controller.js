@@ -15,11 +15,11 @@ export const getRevenueAnalytics = asyncHandler(async (req, res) => {
 });
 
 /**
- * Get signups by district
+ * Get signups by category
  */
-export const getSignupsByDistrict = asyncHandler(async (req, res) => {
+export const getSignupsByCategory = asyncHandler(async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 10;
-    const data = await analyticsService.getSignupsByDistrict(limit);
+    const data = await analyticsService.getSignupsByCategory(limit);
     res.status(HTTP_STATUS.OK).json(
         new ApiResponse(HTTP_STATUS.OK, data, 'Signup analytics retrieved successfully')
     );
@@ -37,6 +37,6 @@ export const getSubscriptionAnalytics = asyncHandler(async (req, res) => {
 
 export const analyticsController = {
     getRevenueAnalytics,
-    getSignupsByDistrict,
+    getSignupsByCategory,
     getSubscriptionAnalytics,
 };

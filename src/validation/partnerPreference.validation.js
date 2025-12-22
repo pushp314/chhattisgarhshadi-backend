@@ -34,7 +34,6 @@ export const upsertPreferenceSchema = z.object({
     residencyStatus: flexibleArray,
 
     // Chhattisgarh-Specific (NEW)
-    nativeDistrict: flexibleArray,
     mustSpeakChhattisgarhi: z.boolean().optional().nullable(),
 
     // Education & Occupation (Allowing arrays)

@@ -74,18 +74,18 @@ export const getRevenueAnalytics = async (months = 6) => {
 };
 
 /**
- * Get user signups by district
+ * Get user signups by category
  */
-export const getSignupsByDistrict = async (limit = 10) => {
+export const getSignupsByCategory = async (limit = 10) => {
     try {
-        // Get signups grouped by district from profiles
+        // Get signups grouped by category from profiles
         const signups = await prisma.profile.groupBy({
-            by: ['nativeDistrict'],
+            by: ['category'],
             _count: {
                 id: true,
             },
             where: {
-                nativeDistrict: {
+                category: {
                     not: null,
                 },
             },
@@ -126,14 +126,14 @@ export const getSignupsByDistrict = async (limit = 10) => {
 
         return {
             data: signups.map((s) => ({
-                district: s.nativeDistrict || 'Unknown',
+                category: s.category || 'Unknown',
                 users: s._count.id,
             })),
             newUsers30d: newUsersCount,
             growth: Math.round(growth * 10) / 10,
         };
     } catch (error) {
-        logger.error('Error in getSignupsByDistrict:', error);
+        logger.error('Error in getSignupsByCategory:', error);
         throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to get signup analytics');
     }
 };
@@ -206,6 +206,6 @@ export const getSubscriptionAnalytics = async () => {
 
 export default {
     getRevenueAnalytics,
-    getSignupsByDistrict,
+    getSignupsByCategory,
     getSubscriptionAnalytics,
 };

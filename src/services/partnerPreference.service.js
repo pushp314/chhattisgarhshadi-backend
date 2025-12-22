@@ -5,9 +5,9 @@ import { logger } from '../config/logger.js';
 
 // Fields that are stored as JSON arrays in the database
 const arrayTextFields = [
-  'religion', 'caste', 'motherTongue', 'maritalStatus', 
-  'country', 'state', 'city', 'residencyStatus', 
-  'nativeDistrict', 'education', 'occupation', 'diet'
+  'religion', 'caste', 'motherTongue', 'maritalStatus',
+  'country', 'state', 'city', 'residencyStatus',
+  'education', 'occupation', 'diet'
 ];
 
 /**

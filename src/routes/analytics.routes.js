@@ -10,8 +10,8 @@ router.use(authenticate, requireAdmin);
 // GET /admin/analytics/revenue - Monthly revenue data
 router.get('/revenue', analyticsController.getRevenueAnalytics);
 
-// GET /admin/analytics/signups - Signups by district
-router.get('/signups', analyticsController.getSignupsByDistrict);
+// GET /admin/analytics/signups - Signups by category
+router.get('/signups', analyticsController.getSignupsByCategory);
 
 // GET /admin/analytics/subscriptions - Subscription breakdown
 router.get('/subscriptions', analyticsController.getSubscriptionAnalytics);

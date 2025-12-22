@@ -114,8 +114,7 @@ class AdminBulkController {
                                     numberOfSisters: row.numberOfSisters ? parseInt(row.numberOfSisters) : 0,
 
                                     // Local Specifics
-                                    nativeDistrict: row.nativeDistrict,
-                                    nativeTehsil: row.nativeTehsil,
+                                    category: row.category ? row.category.toUpperCase() : undefined, // NEW: Added Category
                                     nativeVillage: row.nativeVillage,
                                     speaksChhattisgarhi: row.speaksChhattisgarhi === 'YES' || row.speaksChhattisgarhi === true,
 
