@@ -1,5 +1,5 @@
 import xlsx from 'xlsx';
-import { prisma } from '../server.js';
+import prisma from '../config/database.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
