@@ -8,11 +8,11 @@ import { getCompatibility } from './astrology.service.js';
 
 // Scoring weights (must sum to 100)
 const WEIGHTS = {
-    PREFERENCES: 35,      // Age, height, education, income, marital status
-    LOCATION: 15,         // Same city/state/country
-    LIFESTYLE: 15,        // Diet, smoking, drinking
-    RELIGION_CASTE: 20,   // Religion, caste, gotra
-    ASTROLOGY: 15,        // Guna matching (if available)
+    PREFERENCES: 30,      // Reduced from 35
+    LOCATION: 20,         // Increased for Native Village
+    LIFESTYLE: 10,        // Reduced
+    RELIGION_CASTE: 25,   // Increased for Category/Community
+    ASTROLOGY: 15,        // Guna matching
 };
 
 /**
@@ -45,51 +45,66 @@ export const calculateMatchScore = async (userId, targetUserId) => {
             return { score: 0, error: 'Profile not found' };
         }
 
-        const breakdown = {};
+        // Delegate to pure scoring function
+        const scoreResult = await calculateScoreFromProfiles(userProfile, targetProfile);
+        return scoreResult;
 
-        // 1. Preference matching (35%)
-        breakdown.preferences = calculatePreferenceScore(
-            userProfile.partnerPreference,
-            targetProfile
-        );
-
-        // 2. Location matching (15%)
-        breakdown.location = calculateLocationScore(userProfile, targetProfile);
-
-        // 3. Lifestyle compatibility (15%)
-        breakdown.lifestyle = calculateLifestyleScore(userProfile, targetProfile);
-
-        // 4. Religion & Caste (20%) - pass userProfile for same-caste check
-        breakdown.religionCaste = calculateReligionScore(
-            userProfile.partnerPreference,
-            targetProfile,
-            userProfile
-        );
-
-        // 5. Astrology (15%) - Use existing service
-        breakdown.astrology = await calculateAstrologyScore(userId, targetUserId);
-
-        // Calculate weighted total
-        const totalScore = Math.round(
-            (breakdown.preferences * WEIGHTS.PREFERENCES +
-                breakdown.location * WEIGHTS.LOCATION +
-                breakdown.lifestyle * WEIGHTS.LIFESTYLE +
-                breakdown.religionCaste * WEIGHTS.RELIGION_CASTE +
-                breakdown.astrology * WEIGHTS.ASTROLOGY) / 100
-        );
-
-        return {
-            score: totalScore,
-            maxScore: 100,
-            percentage: totalScore,
-            breakdown,
-            compatibility: getCompatibilityLabel(totalScore),
-            isSuperMatch: totalScore >= 85,
-        };
     } catch (error) {
         console.error('Error calculating match score:', error);
         return { score: 0, error: error.message };
     }
+};
+
+/**
+ * Pure function to calculate score from profile objects
+ * Useful for testing or when profiles are already fetched
+ */
+export const calculateScoreFromProfiles = async (userProfile, targetProfile) => {
+    const breakdown = {};
+
+    // 1. Preference matching (35%)
+    breakdown.preferences = calculatePreferenceScore(
+        userProfile.partnerPreference,
+        targetProfile
+    );
+
+    // 2. Location matching (15%)
+    breakdown.location = calculateLocationScore(userProfile, targetProfile);
+
+    // 3. Lifestyle compatibility (15%)
+    breakdown.lifestyle = calculateLifestyleScore(userProfile, targetProfile);
+
+    // 4. Religion & Caste (20%) - pass userProfile for same-caste check
+    breakdown.religionCaste = calculateReligionScore(
+        userProfile.partnerPreference,
+        targetProfile,
+        userProfile
+    );
+
+    // 5. Astrology (15%) - Use existing service
+    // Note: This still relies on an external service in the breakdown, 
+    // but for unit testing we might want to mock it or handle it.
+    // For now, we'll keep the call but make it robust.
+    breakdown.astrology = await calculateAstrologyScore(userProfile.userId, targetProfile.userId);
+
+    // Calculate weighted total
+    const totalScore = Math.round(
+        (breakdown.preferences * WEIGHTS.PREFERENCES +
+            breakdown.location * WEIGHTS.LOCATION +
+            breakdown.lifestyle * WEIGHTS.LIFESTYLE +
+            breakdown.religionCaste * WEIGHTS.RELIGION_CASTE +
+            breakdown.astrology * WEIGHTS.ASTROLOGY) / 100
+    );
+
+    return {
+        score: totalScore,
+        maxScore: 100,
+        percentage: totalScore,
+        totalScore, // For backward compatibility if needed in tests
+        breakdown,
+        compatibility: getCompatibilityLabel(totalScore),
+        isSuperMatch: totalScore >= 85,
+    };
 };
 
 /**
@@ -172,16 +187,22 @@ const calculatePreferenceScore = (preferences, targetProfile) => {
  * Calculate location score
  */
 const calculateLocationScore = (profile1, profile2) => {
+    // 1. Native Village (Huge Boost)
+    if (profile1.nativeVillage && profile2.nativeVillage &&
+        profile1.nativeVillage.trim().toLowerCase() === profile2.nativeVillage.trim().toLowerCase()) {
+        return 100; // Same village = Perfect
+    }
+
     if (profile1.city && profile2.city && profile1.city === profile2.city) {
-        return 100; // Same city
+        return 80; // Same city
     }
     if (profile1.state && profile2.state && profile1.state === profile2.state) {
-        return 75; // Same state
+        return 50; // Same state
     }
     if (profile1.country && profile2.country && profile1.country === profile2.country) {
-        return 50; // Same country
+        return 20; // Same country
     }
-    return 25; // Different country
+    return 10; // Different country
 };
 
 /**
@@ -240,8 +261,6 @@ const calculateLifestyleScore = (profile1, profile2) => {
 
 /**
  * Calculate religion and caste score
- * Handles casteMandatory preference - if true, only same caste gets 100%, otherwise 0%
- * If casteMandatory is false or not set, caste is still scored but not a deal-breaker
  */
 const calculateReligionScore = (preferences, targetProfile, userProfile) => {
     if (!preferences) return 50;
@@ -249,18 +268,28 @@ const calculateReligionScore = (preferences, targetProfile, userProfile) => {
     let score = 0;
     let factors = 0;
 
-    // Religion
+    // Religion (Crucial)
     if (preferences.religion && targetProfile.religion) {
         const prefReligions = preferences.religion;
         if (prefReligions.includes(targetProfile.religion)) {
             score += 100;
         } else {
-            score += 0; // Religion mismatch is significant
+            score += 0;
         }
         factors++;
     }
 
-    // Caste - Enhanced logic
+    // Category (NEW)
+    if (userProfile?.category && targetProfile.category) {
+        if (userProfile.category === targetProfile.category) {
+            score += 100;
+        } else {
+            score += 50; // Partial match
+        }
+        factors++;
+    }
+
+    // Caste
     if (targetProfile.caste) {
         const isCasteMandatory = preferences.casteMandatory === true;
         const userCaste = userProfile?.caste;
@@ -268,42 +297,41 @@ const calculateReligionScore = (preferences, targetProfile, userProfile) => {
         const prefCastes = preferences.caste || [];
 
         if (isCasteMandatory) {
-            // MANDATORY: Same caste gets 100%, different caste gets 0%
             if (userCaste && userCaste === targetCaste) {
-                score += 100; // Same caste - perfect match
+                score += 100;
             } else if (prefCastes.length > 0 && prefCastes.includes(targetCaste)) {
-                score += 100; // In preferred castes
+                score += 100;
             } else {
-                score += 0; // Caste mismatch when mandatory
+                score += 0;
             }
         } else {
-            // NOT MANDATORY: Prioritize same caste, but allow others
             if (userCaste && userCaste === targetCaste) {
-                score += 100; // Same caste - bonus
+                score += 100;
             } else if (prefCastes.length > 0 && prefCastes.includes(targetCaste)) {
-                score += 90; // Preferred caste
+                score += 90;
             } else {
-                score += 60; // Different caste but acceptable
+                score += 60;
             }
         }
         factors++;
     }
 
-    // Sub-caste bonus (additional points for same sub-caste)
+    // Sub-caste bonus
     if (userProfile?.subCaste && targetProfile.subCaste &&
         userProfile.subCaste === targetProfile.subCaste) {
-        score += 20; // Bonus for same sub-caste
+        score += 20;
     }
 
-    // Mother tongue
-    if (preferences.motherTongue && targetProfile.motherTongue) {
-        const prefLanguages = preferences.motherTongue;
-        if (prefLanguages.includes(targetProfile.motherTongue)) {
-            score += 100;
-        } else {
-            score += 50; // Language difference is less critical
+    // Gothram Check (NEW)
+    if (userProfile?.gothram && targetProfile.gothram) {
+        if (userProfile.gothram.toLowerCase() !== targetProfile.gothram.toLowerCase()) {
+            score += 10; // Compatible if different
         }
-        factors++;
+    }
+
+    // Speaks Chhattisgarhi Bonus (Culture)
+    if (userProfile.speaksChhattisgarhi && targetProfile.speaksChhattisgarhi) {
+        score += 20;
     }
 
     return factors > 0 ? Math.min(100, Math.round(score / factors)) : 50;
@@ -467,6 +495,7 @@ const parseIncomeToNumber = (income) => {
 
 export default {
     calculateMatchScore,
+    calculateScoreFromProfiles,
     getDailyRecommendations,
     getSuperMatches,
 };
