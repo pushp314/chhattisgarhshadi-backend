@@ -34,13 +34,13 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(), // ✅ Optional (not needed for mobile)
   GOOGLE_CALLBACK_URL: z.string().optional(),  // ✅ Optional (not needed for mobile)
 
-  // AWS S3
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_S3_BUCKET_NAME: z.string().optional(),
-  AWS_S3_BUCKET: z.string().optional(),
-  AWS_S3_REGION: z.string().optional(),
-  AWS_REGION: z.string().default('ap-south-1'),
+  // Cloudflare R2 Storage
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_ENDPOINT: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_REGION: z.string().default('auto'),
+  R2_PUBLIC_URL: z.string().optional(),
 
   // Firebase
   FIREBASE_PROJECT_ID: z.string().optional(),

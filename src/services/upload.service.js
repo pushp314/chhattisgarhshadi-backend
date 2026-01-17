@@ -4,7 +4,7 @@ import {
   GetObjectCommand,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { s3Client, getBucketName, isS3Configured, getRegion } from '../config/aws.js';
+import { s3Client, getBucketName, isS3Configured, getRegion } from '../config/r2.js';
 import { ApiError } from '../utils/ApiError.js';
 import { HTTP_STATUS } from '../utils/constants.js';
 import { generateUniqueFilename, generateS3Key } from '../utils/helpers.js';

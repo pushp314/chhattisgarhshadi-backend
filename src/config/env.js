@@ -20,11 +20,13 @@ const envSchema = z.object({
   GOOGLE_CLIENT_SECRET: z.string().optional(), // Optional for mobile-only apps
   GOOGLE_CALLBACK_URL: z.string().optional(), // Optional for mobile-only apps
 
-  // AWS S3 - FIXED: Made optional
-  AWS_ACCESS_KEY_ID: z.string().optional(),
-  AWS_SECRET_ACCESS_KEY: z.string().optional(),
-  AWS_REGION: z.string().default('eu-north-1'),
-  AWS_S3_BUCKET_NAME: z.string().optional(),
+  // Cloudflare R2 Storage
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_ENDPOINT: z.string().optional(),
+  R2_BUCKET_NAME: z.string().optional(),
+  R2_REGION: z.string().default('auto'),
+  R2_PUBLIC_URL: z.string().optional(),
 
   // Razorpay - Optional
   RAZORPAY_KEY_ID: z.string().optional(),

@@ -178,11 +178,11 @@ router.get('/health/detailed', async (req, res) => {
           status: process.env.FIREBASE_PROJECT_ID ? '✅ Configured' : '⚠️ Not configured',
           service: 'FCM Push Notifications',
         },
-        aws: {
-          status: process.env.AWS_ACCESS_KEY_ID && process.env.AWS_ACCESS_KEY_ID !== 'your-aws-access-key-id'
+        r2: {
+          status: process.env.R2_ACCESS_KEY_ID && process.env.R2_BUCKET_NAME
             ? '✅ Configured'
             : '⚠️ Not configured',
-          service: 'S3 File Storage',
+          service: 'Cloudflare R2 Storage',
         },
         razorpay: {
           status: process.env.RAZORPAY_KEY_ID ? '✅ Configured' : '⚠️ Not configured',
