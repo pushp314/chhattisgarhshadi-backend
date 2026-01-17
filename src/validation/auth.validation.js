@@ -40,6 +40,15 @@ export const logoutSchema = z.object({
   }),
 });
 
+// Schema for Phone Login (Firebase Auth)
+export const phoneLoginSchema = z.object({
+  body: z.object({
+    firebaseIdToken: z.string({ required_error: 'Firebase ID token is required' }).min(1),
+    deviceInfo: z.object({}).passthrough().optional(),
+    agentCode: z.string().max(20).optional(),
+  }),
+});
+
 // Schema for Firebase Phone Verification
 export const verifyFirebasePhoneSchema = z.object({
   body: z.object({

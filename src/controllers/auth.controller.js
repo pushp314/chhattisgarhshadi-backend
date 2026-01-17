@@ -122,6 +122,36 @@ class AuthController {
   });
 
   /**
+   * Phone Login (Firebase Auth)
+   * POST /auth/phone/login
+   */
+  phoneLogin = asyncHandler(async (req, res) => {
+    const { firebaseIdToken, deviceInfo, agentCode } = req.body;
+
+    if (!firebaseIdToken) {
+      throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Firebase ID token is required');
+    }
+
+    const result = await authService.loginWithPhone(
+      firebaseIdToken,
+      req.ip,
+      deviceInfo || {},
+      agentCode
+    );
+
+    const message = result.isNewUser ? 'Account created successfully' : 'Login successful';
+    const data = {
+      user: result.user,
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      expiresIn: process.env.JWT_ACCESS_EXPIRY || '15m',
+      isNewUser: result.isNewUser,
+    };
+
+    return res.status(HTTP_STATUS.OK).json(new ApiResponse(HTTP_STATUS.OK, data, message));
+  });
+
+  /**
    * Verify Firebase Phone Auth Token
    * POST /auth/phone/verify-firebase
    */

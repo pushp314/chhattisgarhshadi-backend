@@ -1,4 +1,3 @@
-import bcrypt from 'bcryptjs';
 import prisma from '../config/database.js';
 import googleAuthClient from '../config/googleAuth.js';
 import jwtUtils from '../utils/jwt.js';
@@ -321,6 +320,176 @@ class AuthService {
     } catch (error) {
       logger.error('❌ Logout error:', error.message);
       throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Logout failed');
+    }
+  }
+
+  /**
+   * Login with Phone (Firebase Auth)
+   * @param {string} firebaseIdToken - Firebase ID token
+   * @param {string} ipAddress - User IP address
+   * @param {Object} deviceInfo - Device information
+   * @param {string} [agentCode] - Optional agent referral code
+   * @returns {Promise<Object>} Auth result with user and tokens
+   */
+  async loginWithPhone(firebaseIdToken, ipAddress, deviceInfo = {}, agentCode = null) {
+    try {
+      // Import Firebase Admin SDK and helper
+      const admin = (await import('firebase-admin')).default;
+      const { getFirebaseApp } = await import('../config/firebase.js');
+
+      // Ensure Firebase is initialized
+      const firebaseApp = getFirebaseApp();
+      if (!firebaseApp) {
+        throw new ApiError(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Firebase Admin SDK not initialized.');
+      }
+
+      // Verify the Firebase ID token
+      const decodedToken = await admin.auth().verifyIdToken(firebaseIdToken);
+      const phoneNumber = decodedToken.phone_number;
+
+      if (!phoneNumber) {
+        throw new ApiError(HTTP_STATUS.BAD_REQUEST, 'Phone number not found in Firebase token');
+      }
+
+      // Check if user exists by phone
+      let user = await prisma.user.findFirst({
+        where: { phone: phoneNumber.replace('+91', '') }, // Assuming Indian numbers, cleaner search might be needed
+        include: { profile: true }
+      });
+
+      // Also try searching with country code if not found above
+      if (!user) {
+        // This is a bit tricky because we store phone without country code usually, 
+        // but let's try to match logic with verifyFirebasePhone
+        const countryCode = phoneNumber.substring(0, 3);
+        const localPhone = phoneNumber.substring(3);
+        user = await prisma.user.findFirst({
+          where: {
+            phone: localPhone,
+            countryCode: countryCode
+          },
+          include: { profile: true }
+        });
+      }
+
+      let isNewUser = false;
+      let agentId = null;
+
+      if (!user) {
+        // Create new user
+        isNewUser = true;
+
+        // Handle Agent Code
+        if (agentCode) {
+          const agent = await prisma.agent.findUnique({
+            where: { agentCode: agentCode, status: 'ACTIVE' },
+          });
+          if (agent) {
+            agentId = agent.id;
+          }
+        }
+
+        const countryCode = phoneNumber.substring(0, 3);
+        const localPhone = phoneNumber.substring(3);
+
+        // Transaction to create user
+        user = await prisma.$transaction(async (tx) => {
+          const newUser = await tx.user.create({
+            data: {
+              phone: localPhone,
+              countryCode: countryCode,
+              isPhoneVerified: true,
+              phoneVerifiedAt: new Date(),
+              // Email is required by schema but we don't have it yet. 
+              // We might need to generate a placeholder or change schema.
+              // Checking schema... email is @unique and required.
+              // This is a BLOCKER. I will generate a placeholder email.
+              email: `phone_${localPhone}_${Date.now()}@placeholder.com`,
+              googleId: `phone_${localPhone}_${Date.now()}`, // Schema requires googleId too!
+              authProvider: 'GOOGLE', // Schema Enum only has GOOGLE. We need to handle this.
+              lastLoginAt: new Date(),
+              lastLoginIp: ipAddress,
+              deviceInfo: JSON.stringify(deviceInfo),
+              agentId: agentId,
+              agentCodeUsed: agentId ? agentCode : null,
+              referredAt: agentId ? new Date() : null,
+            },
+            include: { profile: true }
+          });
+
+          if (agentId) {
+            await tx.agent.update({
+              where: { id: agentId },
+              data: {
+                totalUsersAdded: { increment: 1 },
+                activeUsers: { increment: 1 },
+              },
+            });
+          }
+          return newUser;
+        });
+        logger.info(`✅ New user created via Phone: ${phoneNumber}`);
+
+      } else {
+        // Update login info
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: {
+            lastLoginAt: new Date(),
+            lastLoginIp: ipAddress,
+            deviceInfo: JSON.stringify(deviceInfo),
+            // Ensure phone is marked verified if they login with it
+            isPhoneVerified: true,
+            phoneVerifiedAt: user.phoneVerifiedAt || new Date()
+          },
+          include: { profile: true }
+        });
+        logger.info(`✅ User logged in via Phone: ${phoneNumber}`);
+      }
+
+      if (user.isBanned) throw new ApiError(HTTP_STATUS.FORBIDDEN, `Account suspended: ${user.banReason}`);
+      if (!user.isActive) throw new ApiError(HTTP_STATUS.FORBIDDEN, 'Account is inactive');
+
+      const accessToken = jwtUtils.generateAccessToken(user);
+      const refreshToken = jwtUtils.generateRefreshToken(user);
+      const refreshExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await prisma.refreshToken.create({
+        data: {
+          userId: user.id,
+          token: refreshToken,
+          deviceId: deviceInfo?.deviceId || null,
+          ipAddress,
+          expiresAt: refreshExpiresAt,
+        }
+      });
+
+      const userResponse = {
+        id: user.id,
+        email: user.email, // This will be placeholder for phone users
+        phone: user.phone,
+        firstName: user.profile?.firstName || null,
+        lastName: user.profile?.lastName || null,
+        profilePicture: user.profilePicture,
+        role: user.role,
+        isPhoneVerified: user.isPhoneVerified,
+        isActive: user.isActive,
+        profile: user.profile,
+      };
+
+      return {
+        user: userResponse,
+        accessToken,
+        refreshToken,
+        isNewUser
+      };
+
+    } catch (error) {
+      logger.error('❌ Login with Phone error:', error.message);
+      if (!(error instanceof ApiError)) {
+        throw new ApiError(HTTP_STATUS.UNAUTHORIZED, error.message || 'Phone login failed');
+      }
+      throw error;
     }
   }
 

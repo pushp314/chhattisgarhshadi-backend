@@ -1,46 +1,48 @@
+// Cloudflare R2 Config
 import { S3Client } from '@aws-sdk/client-s3';
 import { config } from './config.js';
 import { logger } from './logger.js';
 
 /**
- * Check if S3 is configured
+ * Check if R2 is configured
  * @returns {boolean}
  */
 export const isS3Configured = () => {
   return !!(
-    config.AWS_ACCESS_KEY_ID &&
-    config.AWS_SECRET_ACCESS_KEY &&
-    (config.AWS_S3_BUCKET_NAME || config.AWS_S3_BUCKET)
+    (process.env.R2_ACCESS_KEY_ID || config.AWS_ACCESS_KEY_ID) &&
+    (process.env.R2_SECRET_ACCESS_KEY || config.AWS_SECRET_ACCESS_KEY) &&
+    (process.env.R2_BUCKET_NAME || config.AWS_S3_BUCKET_NAME)
   );
 };
 
 /**
- * Initialize AWS S3 Client (only if configured)
+ * Initialize Cloudflare R2 Client (via S3 SDK)
  */
 export const s3Client = isS3Configured()
   ? new S3Client({
-      region: config.AWS_S3_REGION || config.AWS_REGION,
-      credentials: {
-        accessKeyId: config.AWS_ACCESS_KEY_ID,
-        secretAccessKey: config.AWS_SECRET_ACCESS_KEY,
-      },
-    })
+    region: process.env.R2_REGION || config.AWS_S3_REGION || 'auto',
+    endpoint: process.env.R2_ENDPOINT || process.env.AWS_S3_ENDPOINT,
+    credentials: {
+      accessKeyId: process.env.R2_ACCESS_KEY_ID || config.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || config.AWS_SECRET_ACCESS_KEY,
+    },
+  })
   : null;
 
 if (isS3Configured()) {
-  logger.info('AWS S3 Client initialized successfully');
+  logger.info('Cloudflare R2 Client initialized successfully');
 } else {
-  logger.warn('AWS S3 is not configured. File upload features will be limited.');
+  logger.warn('Cloudflare R2 is not configured. File upload features will be limited.');
 }
 
 /**
- * Get S3 bucket name from config
+ * Get Bucket Name
  * @returns {string}
  */
-export const getBucketName = () => config.AWS_S3_BUCKET_NAME || config.AWS_S3_BUCKET;
+export const getBucketName = () => process.env.R2_BUCKET_NAME || config.AWS_S3_BUCKET_NAME;
 
 /**
- * Get S3 region from config
+ * Get Region
  * @returns {string}
  */
-export const getRegion = () => config.AWS_S3_REGION || config.AWS_REGION;
+export const getRegion = () => process.env.R2_REGION || config.AWS_S3_REGION || 'auto';

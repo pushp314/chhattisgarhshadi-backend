@@ -7,6 +7,7 @@ import {
   refreshTokenSchema,
   logoutSchema,
   verifyFirebasePhoneSchema,
+  phoneLoginSchema,
 } from '../validation/auth.validation.js';
 
 const router = Router();
@@ -36,6 +37,13 @@ router.post(
   authenticate,
   validate(logoutSchema),
   authController.logout
+);
+
+// Firebase Phone Login (New)
+router.post(
+  '/phone/login',
+  validate(phoneLoginSchema),
+  authController.phoneLogin
 );
 
 // Firebase Phone Verification (replaces MSG91 OTP)
